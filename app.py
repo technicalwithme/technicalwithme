@@ -6,130 +6,238 @@ from google.genai import types
 import json
 import io
 
-# ==========================================
-# APNI API KEY YAHAN PASTE KAREIN
-MY_API_KEY = "AQ.Ab8RN6ItWlGk8Jm60bjzDNpKQpfAG6XA7ZovGFLaH6b0yTg2gQ"
-# ==========================================
+# Page Configuration
+st.set_page_config(
+    page_title="Technical With Me | Electrical Engineering Portal",
+    page_icon="⚡",
+    layout="wide"
+)
 
-st.set_page_config(page_title="AI Transformer Report Generator", layout="centered")
-st.title("⚡ AI Transformer Report Auto-Filler")
-st.write("Blank Word Format aur Handwritten Sheet upload karein. AI exact table aur headings me data fill kar dega.")
+# Custom Styling (CSS)
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #1E88E5, #00E676);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0px;
+    }
+    .sub-text {
+        font-size: 1rem;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+    .ad-card {
+        background-color: #f8f9fa;
+        border: 2px dashed #00E676;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        margin: 15px 0;
+    }
+    .blog-card {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-if not MY_API_KEY or MY_API_KEY == "YOUR_GEMINI_API_KEY_HERE":
-    api_key = st.text_input("Gemini API Key dalein:", type="password")
-else:
-    api_key = MY_API_KEY
-    st.success("✅ API Key loaded!")
+# Session State for Dynamic Blogs
+if "blogs" not in st.session_state:
+    st.session_state.blogs = [
+        {
+            "title": "Transformer Tan-Delta & Capacitance Testing Best Practices",
+            "category": "Testing & Commissioning",
+            "content": "Tan-Delta testing is crucial for assessing insulation degradation in bushings and windings. Maintaining ambient temperature records and using shielded cables prevents noise during 10kV test voltages.",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        }
+    ]
 
-# 1. Blank Word Format File
-template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
+# Sidebar Navigation
+with st.sidebar:
+    st.image("https://img.icons8.com/color/96/lightning-bolt.png", width=60)
+    st.title("Technical With Me")
+    st.caption("Power Systems & Automation Portal")
+    menu = st.radio("Navigation", ["⚡ AI Report Auto-Filler", "📰 Tech Blogs & Vlogs", "➕ Post New Blog", "📢 Sponsor Ads"])
+    
+    st.divider()
+    # Ad Slot Sidebar
+    st.markdown("""
+    <div class="ad-card">
+        <small style="color: #888;">SPONSORED</small><br>
+        <b>Omicron CPC 100 & Testing Kits</b><br>
+        <span style="font-size: 12px; color: #555;">Reliable Switchyard Commissioning Tools</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-# 2. Handwritten Report (Image / PDF)
-uploaded_report = st.file_uploader("2. Site Engineer ki Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
+# ----------------- PAGE 1: AI AUTO-FILLER -----------------
+if menu == "⚡ AI Report Auto-Filler":
+    st.markdown('<p class="main-header">⚡ AI Transformer Report Auto-Filler</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
 
-def get_template_text(doc):
-    """Word document ke paragraphs aur tables ke structures extract karta hai"""
-    structure = []
-    for i, p in enumerate(doc.paragraphs):
-        if p.text.strip():
-            structure.append(f"Paragraph {i}: {p.text.strip()}")
-            
-    for t_idx, tbl in enumerate(doc.tables):
-        structure.append(f"\n--- Table {t_idx} Structure ---")
-        for r_idx, row in enumerate(tbl.rows):
-            row_vals = [f"[Cell {c_idx}]: {cell.text.strip()}" for c_idx, cell in enumerate(row.cells)]
-            structure.append(f"Row {r_idx}: " + " | ".join(row_vals))
-    return "\n".join(structure)
+    col1, col2 = st.columns([2, 1])
 
-if template_file and uploaded_report and api_key:
-    if st.button("Generate Final Report"):
-        with st.spinner("AI Word format aur handwritten headings ko match karke fill kar raha hai..."):
-            try:
-                # Load Word Template
-                doc = Document(template_file)
-                template_structure = get_template_text(doc)
+    with col1:
+        # API Key Section
+        api_key = st.text_input("Enter Gemini API Key (or set in secrets.toml):", type="password")
 
-                # Prepare File (PDF ya Compressed Image for fast upload)
-                if uploaded_report.type == "application/pdf":
-                    file_bytes = uploaded_report.getvalue()
-                    mime_type = "application/pdf"
+        template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
+        uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
+
+        def get_template_text(doc):
+            structure = []
+            for i, p in enumerate(doc.paragraphs):
+                if p.text.strip():
+                    structure.append(f"Paragraph {i}: {p.text.strip()}")
+            for t_idx, tbl in enumerate(doc.tables):
+                structure.append(f"\n--- Table {t_idx} ---")
+                for r_idx, row in enumerate(tbl.rows):
+                    row_vals = [f"[Cell {c_idx}]: {cell.text.strip()}" for c_idx, cell in enumerate(row.cells)]
+                    structure.append(f"Row {r_idx}: " + " | ".join(row_vals))
+            return "\n".join(structure)
+
+        if template_file and uploaded_report:
+            if st.button("🚀 Generate Final Report", use_container_width=True):
+                if not api_key:
+                    st.error("Please enter your Gemini API Key first.")
                 else:
-                    img = Image.open(uploaded_report)
-                    if img.mode != 'RGB':
-                        img = img.convert('RGB')
-                    img.thumbnail((1600, 1600))
-                    buf = io.BytesIO()
-                    img.save(buf, format='JPEG', quality=85)
-                    file_bytes = buf.getvalue()
-                    mime_type = "image/jpeg"
+                    with st.spinner("Processing handwritten sheet and mapping to template..."):
+                        try:
+                            doc = Document(template_file)
+                            template_structure = get_template_text(doc)
 
-                client = genai.Client(api_key=api_key)
-                file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+                            if uploaded_report.type == "application/pdf":
+                                file_bytes = uploaded_report.getvalue()
+                                mime_type = "application/pdf"
+                            else:
+                                img = Image.open(uploaded_report)
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img.thumbnail((1600, 1600))
+                                buf = io.BytesIO()
+                                img.save(buf, format='JPEG', quality=85)
+                                file_bytes = buf.getvalue()
+                                mime_type = "image/jpeg"
 
-                prompt = f"""
-                You are an expert Electrical Engineer OCR assistant.
-                
-                You have two inputs:
-                1. An uploaded handwritten testing report (image/PDF) written by a site engineer with various test headings (e.g. Tan-Delta, Capacitance, IR Test, Bushing test, Transformer Ratings, Dates, Remarks, Client).
-                2. The structural layout of the blank Word Template:
-                {template_structure}
+                            client = genai.Client(api_key=api_key)
+                            file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-                TASK:
-                Extract the values from the handwritten document and map them directly to the corresponding Word Template locations (Paragraphs or Table Cells). Match by semantic meaning of headings.
+                            prompt = f"""
+                            You are an OCR and Document Automation Specialist.
+                            Extract all handwritten entries from the uploaded document and map them into the provided Word document structure:
+                            {template_structure}
 
-                Return strictly a JSON object with this format:
-                {{
-                  "paragraph_updates": [
-                    {{"index": 0, "text_to_append_or_replace": "Extracted text"}}
-                  ],
-                  "table_updates": [
-                    {{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "Extracted value/test reading"}}
-                  ]
-                }}
-                """
+                            Return strictly a JSON object:
+                            {{
+                              "paragraph_updates": [{{"index": 0, "text_to_append_or_replace": "Value"}}],
+                              "table_updates": [{{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "Value"}}]
+                            }}
+                            """
 
-                response = client.models.generate_content(
-                    model='gemini-3.6-flash',
-                    contents=[prompt, file_part],
-                    config=types.GenerateContentConfig(response_mime_type="application/json")
-                )
+                            response = client.models.generate_content(
+                                model='gemini-3.6-flash',
+                                contents=[prompt, file_part],
+                                config=types.GenerateContentConfig(response_mime_type="application/json")
+                            )
 
-                mapping = json.loads(response.text)
+                            mapping = json.loads(response.text)
 
-                # 1. Update Paragraphs (Dates, Client, Remarks, etc.)
-                for p_up in mapping.get("paragraph_updates", []):
-                    idx = p_up.get("index")
-                    val = p_up.get("text_to_append_or_replace", "")
-                    if idx is not None and idx < len(doc.paragraphs):
-                        p = doc.paragraphs[idx]
-                        p.text = f"{p.text} {val}".strip()
+                            # Updates
+                            for p_up in mapping.get("paragraph_updates", []):
+                                idx = p_up.get("index")
+                                val = p_up.get("text_to_append_or_replace", "")
+                                if idx is not None and idx < len(doc.paragraphs):
+                                    doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
 
-                # 2. Update Tables (Test Results, Readings, Headings)
-                for t_up in mapping.get("table_updates", []):
-                    t_idx = t_up.get("table_idx", 0)
-                    r_idx = t_up.get("row_idx", 0)
-                    c_idx = t_up.get("col_idx", 0)
-                    val = t_up.get("value", "")
+                            for t_up in mapping.get("table_updates", []):
+                                t_idx = t_up.get("table_idx", 0)
+                                r_idx = t_up.get("row_idx", 0)
+                                c_idx = t_up.get("col_idx", 0)
+                                val = t_up.get("value", "")
+                                if t_idx < len(doc.tables):
+                                    tbl = doc.tables[t_idx]
+                                    if r_idx < len(tbl.rows) and c_idx < len(tbl.rows[r_idx].cells):
+                                        tbl.rows[r_idx].cells[c_idx].text = str(val)
 
-                    if t_idx < len(doc.tables):
-                        table = doc.tables[t_idx]
-                        if r_idx < len(table.rows):
-                            row = table.rows[r_idx]
-                            if c_idx < len(row.cells):
-                                cell = row.cells[c_idx]
-                                cell.text = str(val)
+                            bio = io.BytesIO()
+                            doc.save(bio)
+                            st.success("✅ Report generated successfully!")
+                            st.download_button(
+                                label="📥 Download Completed Word Document",
+                                data=bio.getvalue(),
+                                file_name="Completed_Report.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True
+                            )
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-                # Save output to memory
-                bio = io.BytesIO()
-                doc.save(bio)
-                st.success("✅ Report successfully generate ho gayi!")
+    with col2:
+        st.markdown("""
+        <div class="ad-card">
+            <h4>⚡ Industry Solutions</h4>
+            <p>High Voltage Transformer Testing & Relay Calibration Services.</p>
+            <button style="background-color:#1E88E5; color:white; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Contact Experts</button>
+        </div>
+        """, unsafe_allow_html=True)
 
-                st.download_button(
-                    label="📥 Download Filled Word Report (.docx)",
-                    data=bio.getvalue(),
-                    file_name="Completed_Testing_Report.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+# ----------------- PAGE 2: TECH BLOGS & VLOGS -----------------
+elif menu == "📰 Tech Blogs & Vlogs":
+    st.markdown('<p class="main-header">📰 Technical Articles & Vlogs</p>', unsafe_allow_html=True)
+    st.write("Latest updates on Power Systems, Substation Automation, and High-Voltage Testing.")
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+    for blog in st.session_state.blogs:
+        with st.container():
+            st.markdown(f"""
+            <div class="blog-card">
+                <span style="color:#1E88E5; font-weight:600;">🏷️ {blog['category']}</span>
+                <h3 style="margin-top:5px;">{blog['title']}</h3>
+                <p>{blog['content']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if blog.get("video_url"):
+                st.video(blog["video_url"])
+            st.divider()
+
+# ----------------- PAGE 3: POST NEW BLOG -----------------
+elif menu == "➕ Post New Blog":
+    st.markdown('<p class="main-header">✍️ Publish a New Technical Post / Vlog</p>', unsafe_allow_html=True)
+    
+    with st.form("new_post_form"):
+        title = st.text_input("Article / Vlog Title")
+        category = st.selectbox("Category", ["Substation Engineering", "Transformer Testing", "Protection & Relays", "Renewable Energy", "General Tech"])
+        content = st.text_area("Content / Description", height=150)
+        video_url = st.text_input("YouTube Video URL (Optional)")
+        submitted = st.form_submit_button("📢 Publish Post")
+        
+        if submitted:
+            if title and content:
+                st.session_state.blogs.insert(0, {
+                    "title": title,
+                    "category": category,
+                    "content": content,
+                    "video_url": video_url if video_url else None
+                })
+                st.success("🎉 Post published successfully! Check the 'Tech Blogs & Vlogs' section.")
+            else:
+                st.warning("Please fill in both title and content.")
+
+# ----------------- PAGE 4: ADS / SPONSORS -----------------
+elif menu == "📢 Sponsor Ads":
+    st.markdown('<p class="main-header">📢 Sponsorship & Advertising</p>', unsafe_allow_html=True)
+    st.write("Monetize your portal using Google AdSense code or direct client banners.")
+    
+    st.info("💡 To connect Google AdSense: Paste your `<script async src='https://pagead2.googlesyndication.com...'></script>` code here using `st.components.v1.html()`.")
+    
+    st.markdown("""
+    <div class="ad-card" style="padding:40px;">
+        <h2>Banner Slot (728x90 / Responsive)</h2>
+        <p>Your Google AdSense or Direct Client Banner will appear here.</p>
+    </div>
+    """, unsafe_allow_html=True)
