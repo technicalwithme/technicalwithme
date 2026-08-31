@@ -1,0 +1,4 @@
+streamlit
+python-docx
+pillow
+google-genai
