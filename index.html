@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical With Me | Electrical Engineering Hub & Smart Tools</title>
+    <meta name="description" content="Technical resources for Electrical Engineers: Transformer Testing, Switchyard Automation, Protection Relays, and AI Report Tools.">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: #111827;
+            --surface-hover: #1f2937;
+            --primary: #0284c7;
+            --accent: #38bdf8;
+            --text-main: #f9fafb;
+            --text-sub: #9ca3af;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background-color: var(--bg); color: var(--text-main); line-height: 1.6; }
+        a { text-decoration: none; color: inherit; }
+
+        /* Navigation */
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 8%; background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+        .logo { font-size: 1.4rem; font-weight: 800; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .nav-links a { margin-left: 25px; color: var(--text-sub); font-size: 0.95rem; font-weight: 600; transition: 0.2s; }
+        .nav-links a:hover { color: var(--text-main); }
+        .nav-btn { background: linear-gradient(90deg, #0284c7, #2563eb); padding: 8px 18px; border-radius: 8px; color: white !important; font-weight: 700; }
+
+        /* Container */
+        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+
+        /* Hero Banner */
+        .hero { text-align: center; padding: 60px 20px 40px; }
+        .hero-tag { display: inline-block; background: rgba(56, 189, 248, 0.1); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.2); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; margin-bottom: 15px; }
+        .hero h1 { font-size: 2.8rem; font-weight: 800; margin-bottom: 15px; }
+        .hero p { color: var(--text-sub); font-size: 1.15rem; max-width: 700px; margin: 0 auto 30px; }
+        .cta-btn { display: inline-block; background: linear-gradient(90deg, #0284c7, #2563eb); color: white; padding: 14px 32px; border-radius: 10px; font-weight: 700; font-size: 1.05rem; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4); transition: transform 0.2s; }
+        .cta-btn:hover { transform: translateY(-2px); }
+
+        /* Ad Slots */
+        .ad-container { background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 25px; text-align: center; margin: 40px 0; }
+        .ad-container small { color: #64748b; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px; }
+
+        /* Blog Grid */
+        .section-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 25px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; transition: transform 0.2s, border-color 0.2s; }
+        .card:hover { transform: translateY(-3px); border-color: rgba(56, 189, 248, 0.3); }
+        .card-tag { font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+        .card h3 { font-size: 1.25rem; margin: 10px 0; color: var(--text-main); }
+        .card p { color: var(--text-sub); font-size: 0.95rem; margin-bottom: 15px; }
+        .read-more { color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+
+        /* Footer */
+        footer { border-top: 1px solid var(--border); margin-top: 60px; padding: 30px 8%; text-align: center; color: var(--text-sub); font-size: 0.85rem; }
+        .footer-links { margin-bottom: 15px; }
+        .footer-links a { margin: 0 12px; color: var(--text-sub); }
+        .footer-links a:hover { color: var(--text-main); }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">⚡ Technical With Me</div>
+        <div class="nav-links">
+            <a href="#articles">Articles</a>
+            <a href="#vlogs">Vlogs</a>
+            <a href="#about">About</a>
+            <a href="https://technicalwithme.streamlit.app" target="_blank" class="nav-btn">Launch AI Auto-Filler 🚀</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-tag">ELECTRICAL POWER ENGINEERING HUB</div>
+            <h1>Smart Automation & High Voltage Testing</h1>
+            <p>Practical guides for transformer testing, switchyard commissioning, protection relays, and instant AI-driven site report generation.</p>
+            <a href="https://technicalwithme.streamlit.app" target="_blank" class="cta-btn">Use AI Transformer Report Tool ⚡</a>
+        </section>
+
+        <!-- Google AdSense Slot Top -->
+        <div class="ad-container">
+            <small>ADVERTISEMENT</small>
+            <div style="color: #64748b; padding: 20px 0;">Google AdSense Responsive Banner Slot (728x90)</div>
+        </div>
+
+        <!-- Technical Articles Section (AdSense Text Content) -->
+        <h2 class="section-title" id="articles">Latest Technical Guides</h2>
+        <div class="grid">
+            <div class="card">
+                <span class="card-tag">High Voltage Testing</span>
+                <h3>Tan-Delta & Capacitance Measurement in 400kV Transformers</h3>
+                <p>Detailed analysis of dielectric dissipation factor (Tan-Delta) measurements across bushing OIP insulation and winding insulation to diagnose moisture ingress.</p>
+                <a href="#articles" class="read-more">Read Technical Guide &rarr;</a>
+            </div>
+
+            <div class="card">
+                <span class="card-tag">Substation Automation</span>
+                <h3>Switchyard Commissioning with Omicron CPC 100</h3>
+                <p>Complete procedure for ratio, winding resistance, and excitation current testing during substation pre-commissioning phases.</p>
+                <a href="#articles" class="read-more">Read Technical Guide &rarr;</a>
+            </div>
+
+            <div class="card">
+                <span class="card-tag">Protection Engineering</span>
+                <h3>Differential Protection (87T) Slope Setting & Testing</h3>
+                <p>Understanding dual-slope differential relay settings to avoid nuisance tripping during inrush current and external fault CT saturation.</p>
+                <a href="#articles" class="read-more">Read Technical Guide &rarr;</a>
+            </div>
+        </div>
+
+        <!-- Middle Ad Slot -->
+        <div class="ad-container">
+            <small>SPONSORED PRODUCTS</small>
+            <div style="color: #64748b; padding: 15px 0;">Testing Equipment & Relay Calibration Services</div>
+        </div>
+
+        <!-- About Section for AdSense Compliance -->
+        <section id="about" style="margin-top: 50px;">
+            <div class="card" style="background: rgba(17, 24, 39, 0.4);">
+                <h2 style="margin-bottom: 10px;">About Technical With Me</h2>
+                <p>Technical With Me is a dedicated engineering portal focused on power systems, switchyard testing, and transformer diagnostic technologies. We build AI-driven tools to automate manual site calculation tasks and publish technical field standards for power engineers worldwide.</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Mandatory AdSense Legal Footer -->
+    <footer>
+        <div class="footer-links">
+            <a href="#">Home</a>
+            <a href="#about">About Us</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Contact Us</a>
+            <a href="https://technicalwithme.streamlit.app" target="_blank">AI Auto-Filler Tool</a>
+        </div>
+        <p>&copy; 2026 Technical With Me. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
