@@ -115,7 +115,7 @@ if menu == "⚡ AI Report Auto-Filler":
                     st.error("API Key backend secrets.toml me configure nahi mili. Kripya secrets set karein.")
                 else:
                     status_placeholder = st.empty()
-                    status_placeholder.info("Processing handwritten sheet and template...")
+                    status_placeholder.info("Reading template and site documents...")
 
                     try:
                         doc = Document(template_file)
@@ -149,30 +149,41 @@ if menu == "⚡ AI Report Auto-Filler":
                         }}
                         """
 
-                        # Auto Retry Loop for 503 Server Busy
+                        # Smart Fallback & Retry Logic
+                        candidate_models = ['gemini-3.6-flash', 'gemini-3.5-flash']
                         response = None
-                        max_retries = 3
-                        for attempt in range(max_retries):
-                            try:
-                                status_placeholder.info(f"Connecting with AI Model (Attempt {attempt + 1}/{max_retries})...")
-                                response = client.models.generate_content(
-                                    model='gemini-3.6-flash',
-                                    contents=[prompt, file_part],
-                                    config=types.GenerateContentConfig(response_mime_type="application/json")
-                                )
+                        last_error = None
+
+                        for model_name in candidate_models:
+                            for attempt in range(2):
+                                try:
+                                    status_placeholder.info(f"Connecting with {model_name} (Attempt {attempt + 1})...")
+                                    response = client.models.generate_content(
+                                        model=model_name,
+                                        contents=[prompt, file_part],
+                                        config=types.GenerateContentConfig(response_mime_type="application/json")
+                                    )
+                                    if response and response.text:
+                                        break
+                                except Exception as err:
+                                    last_error = err
+                                    err_str = str(err).lower()
+                                    if "503" in err_str or "unavailable" in err_str or "resource_exhausted" in err_str:
+                                        time.sleep(3)
+                                        continue
+                                    else:
+                                        raise err
+                            if response and response.text:
                                 break
-                            except Exception as api_err:
-                                if "503" in str(api_err) and attempt < max_retries - 1:
-                                    status_placeholder.warning("Google Server busy hai. 5 seconds mein automatic retry ho raha hai...")
-                                    time.sleep(5)
-                                else:
-                                    raise api_err
+
+                        if not response or not response.text:
+                            raise last_error if last_error else Exception("Server busy. Please try again.")
 
                         status_placeholder.empty()
 
                         mapping = json.loads(response.text)
 
-                        # Updates
+                        # Updates in Word Document
                         for p_up in mapping.get("paragraph_updates", []):
                             idx = p_up.get("index")
                             val = p_up.get("text_to_append_or_replace", "")
