@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 import json
 import io
+import time
 
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
 ADMIN_PASSWORD = "Sajjad@786"
@@ -113,76 +114,94 @@ if menu == "⚡ AI Report Auto-Filler":
                 if not api_key:
                     st.error("API Key backend secrets.toml me configure nahi mili. Kripya secrets set karein.")
                 else:
-                    with st.spinner("Processing handwritten sheet and mapping to template..."):
-                        try:
-                            doc = Document(template_file)
-                            template_structure = get_template_text(doc)
+                    status_placeholder = st.empty()
+                    status_placeholder.info("Processing handwritten sheet and template...")
 
-                            if uploaded_report.type == "application/pdf":
-                                file_bytes = uploaded_report.getvalue()
-                                mime_type = "application/pdf"
-                            else:
-                                img = Image.open(uploaded_report)
-                                if img.mode != 'RGB':
-                                    img = img.convert('RGB')
-                                img.thumbnail((1600, 1600))
-                                buf = io.BytesIO()
-                                img.save(buf, format='JPEG', quality=85)
-                                file_bytes = buf.getvalue()
-                                mime_type = "image/jpeg"
+                    try:
+                        doc = Document(template_file)
+                        template_structure = get_template_text(doc)
 
-                            client = genai.Client(api_key=api_key)
-                            file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+                        if uploaded_report.type == "application/pdf":
+                            file_bytes = uploaded_report.getvalue()
+                            mime_type = "application/pdf"
+                        else:
+                            img = Image.open(uploaded_report)
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            img.thumbnail((1600, 1600))
+                            buf = io.BytesIO()
+                            img.save(buf, format='JPEG', quality=85)
+                            file_bytes = buf.getvalue()
+                            mime_type = "image/jpeg"
 
-                            prompt = f"""
-                            You are an OCR and Document Automation Specialist.
-                            Extract all handwritten entries from the uploaded document and map them into the provided Word document structure:
-                            {template_structure}
+                        client = genai.Client(api_key=api_key)
+                        file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-                            Return strictly a JSON object:
-                            {{
-                              "paragraph_updates": [{{"index": 0, "text_to_append_or_replace": "Value"}}],
-                              "table_updates": [{{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "Value"}}]
-                            }}
-                            """
+                        prompt = f"""
+                        You are an OCR and Document Automation Specialist.
+                        Extract all handwritten entries from the uploaded document and map them into the provided Word document structure:
+                        {template_structure}
 
-                            response = client.models.generate_content(
-                                model='gemini-3.6-flash',
-                                contents=[prompt, file_part],
-                                config=types.GenerateContentConfig(response_mime_type="application/json")
-                            )
+                        Return strictly a JSON object:
+                        {{
+                          "paragraph_updates": [{{"index": 0, "text_to_append_or_replace": "Value"}}],
+                          "table_updates": [{{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "Value"}}]
+                        }}
+                        """
 
-                            mapping = json.loads(response.text)
+                        # Auto Retry Loop for 503 Server Busy
+                        response = None
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                status_placeholder.info(f"Connecting with AI Model (Attempt {attempt + 1}/{max_retries})...")
+                                response = client.models.generate_content(
+                                    model='gemini-3.6-flash',
+                                    contents=[prompt, file_part],
+                                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                                )
+                                break
+                            except Exception as api_err:
+                                if "503" in str(api_err) and attempt < max_retries - 1:
+                                    status_placeholder.warning("Google Server busy hai. 5 seconds mein automatic retry ho raha hai...")
+                                    time.sleep(5)
+                                else:
+                                    raise api_err
 
-                            # Updates
-                            for p_up in mapping.get("paragraph_updates", []):
-                                idx = p_up.get("index")
-                                val = p_up.get("text_to_append_or_replace", "")
-                                if idx is not None and idx < len(doc.paragraphs):
-                                    doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
+                        status_placeholder.empty()
 
-                            for t_up in mapping.get("table_updates", []):
-                                t_idx = t_up.get("table_idx", 0)
-                                r_idx = t_up.get("row_idx", 0)
-                                c_idx = t_up.get("col_idx", 0)
-                                val = t_up.get("value", "")
-                                if t_idx < len(doc.tables):
-                                    tbl = doc.tables[t_idx]
-                                    if r_idx < len(tbl.rows) and c_idx < len(tbl.rows[r_idx].cells):
-                                        tbl.rows[r_idx].cells[c_idx].text = str(val)
+                        mapping = json.loads(response.text)
 
-                            bio = io.BytesIO()
-                            doc.save(bio)
-                            st.success("✅ Report generated successfully!")
-                            st.download_button(
-                                label="📥 Download Completed Word Document",
-                                data=bio.getvalue(),
-                                file_name="Completed_Report.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                use_container_width=True
-                            )
-                        except Exception as e:
-                            st.error(f"Error: {e}")
+                        # Updates
+                        for p_up in mapping.get("paragraph_updates", []):
+                            idx = p_up.get("index")
+                            val = p_up.get("text_to_append_or_replace", "")
+                            if idx is not None and idx < len(doc.paragraphs):
+                                doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
+
+                        for t_up in mapping.get("table_updates", []):
+                            t_idx = t_up.get("table_idx", 0)
+                            r_idx = t_up.get("row_idx", 0)
+                            c_idx = t_up.get("col_idx", 0)
+                            val = t_up.get("value", "")
+                            if t_idx < len(doc.tables):
+                                tbl = doc.tables[t_idx]
+                                if r_idx < len(tbl.rows) and c_idx < len(tbl.rows[r_idx].cells):
+                                    tbl.rows[r_idx].cells[c_idx].text = str(val)
+
+                        bio = io.BytesIO()
+                        doc.save(bio)
+                        st.success("✅ Report generated successfully!")
+                        st.download_button(
+                            label="📥 Download Completed Word Document",
+                            data=bio.getvalue(),
+                            file_name="Completed_Report.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        status_placeholder.empty()
+                        st.error(f"Error: {e}")
 
     with col2:
         st.markdown("""
