@@ -1,7 +1,6 @@
 import streamlit as st
 from PIL import Image
 from docx import Document
-from docx.shared import Pt, RGBColor
 from google import genai
 from google.genai import types
 import json
@@ -26,64 +25,31 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 2.2rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #0284c7, #38bdf8);
+        font-weight: 700;
+        background: linear-gradient(90deg, #1E88E5, #00E676);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 2px;
+        margin-bottom: 0px;
     }
     .sub-text {
         font-size: 1rem;
-        color: #94a3b8;
-        margin-bottom: 15px;
-    }
-    /* Highlighted Test Badges */
-    .test-badge-box {
-        background: #0f172a;
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 22px;
-    }
-    .badge-title {
-        color: #38bdf8;
-        font-weight: 700;
-        font-size: 0.95rem;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .badges-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    .test-badge {
-        background: rgba(2, 132, 199, 0.15);
-        color: #e0f2fe;
-        border: 1px solid rgba(56, 189, 248, 0.4);
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
+        color: #6c757d;
+        margin-bottom: 20px;
     }
     .ad-card {
-        background-color: #111827;
-        border: 1px dashed rgba(56, 189, 248, 0.5);
-        border-radius: 12px;
-        padding: 18px;
+        background-color: #f8f9fa;
+        border: 2px dashed #00E676;
+        border-radius: 10px;
+        padding: 15px;
         text-align: center;
         margin: 15px 0;
     }
     .blog-card {
-        background: #111827;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
         padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         margin-bottom: 20px;
     }
 </style>
@@ -110,9 +76,9 @@ with st.sidebar:
     st.divider()
     st.markdown("""
     <div class="ad-card">
-        <small style="color: #38bdf8; font-weight:700;">SPONSORED</small><br>
-        <b style="color:#f8fafc;">Omicron CPC 100 & Testing Kits</b><br>
-        <span style="font-size: 12px; color: #94a3b8;">Reliable Switchyard Commissioning Tools</span>
+        <small style="color: #888;">SPONSORED</small><br>
+        <b>Omicron CPC 100 & Testing Kits</b><br>
+        <span style="font-size: 12px; color: #555;">Reliable Switchyard Commissioning Tools</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -120,23 +86,6 @@ with st.sidebar:
 if menu == "⚡ AI Report Auto-Filler":
     st.markdown('<p class="main-header">⚡ AI Transformer Report Auto-Filler</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
-
-    # VISUAL HIGHLIGHT: TRANSFORMER TESTS BADGES
-    st.markdown("""
-    <div class="test-badge-box">
-        <div class="badge-title">🎯 Fully Supported Transformer Test Auto-Fills:</div>
-        <div class="badges-container">
-            <span class="test-badge">⚡ Magnetic Balance Test</span>
-            <span class="test-badge">🔌 Magnetizing Current Test</span>
-            <span class="test-badge">🛡️ Short Circuit Impedance (%Z)</span>
-            <span class="test-badge">📊 Insulation Resistance (IR / PI / DAR)</span>
-            <span class="test-badge">🌀 Winding Resistance (Tap-wise)</span>
-            <span class="test-badge">🔄 Voltage Ratio & Vector Group</span>
-            <span class="test-badge">📈 Tan-Delta & Capacitance (Bushings/Windings)</span>
-            <span class="test-badge">🧭 Polarity & Neutral Grounding</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
@@ -172,7 +121,7 @@ if menu == "⚡ AI Report Auto-Filler":
                     st.error("API Key backend secrets mein nahi mili.")
                 else:
                     status = st.empty()
-                    status.info("Step 1/3: Reading and indexing Word document tables...")
+                    status.info("Reading document format and site sheet...")
 
                     try:
                         doc = Document(template_file)
@@ -194,35 +143,34 @@ if menu == "⚡ AI Report Auto-Filler":
                         client = genai.Client(api_key=api_key)
                         file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-                        status.info("Step 2/3: AI deep-scanning all test sections (Short Circuit, Balance, Polarity)...")
+                        status.info("AI extracting all electrical test records...")
 
                         prompt = f"""
-                        You are a Senior Transformer Testing & Commissioning Specialist with high-precision OCR abilities.
-                        You must extract EVERY handwritten value from the site record and map it to the corresponding Word table cell.
+                        You are an expert Transformer Testing & Commissioning Specialist with high-precision OCR abilities.
+                        Your task is to thoroughly analyze the handwritten test sheet and map EVERY test reading into the Word document format.
 
-                        ### MANDATORY ELECTRICAL TEST SECTIONS TO EXTRACT:
+                        ### MANDATORY TRANSFORMER TESTS TO EXTRACT:
                         1. **MAGNETIC BALANCE TEST**:
-                           - Voltage applied across phases (e.g., 230V on 1U-1V, 1V-1W, 1W-1U).
-                           - Induced voltages across other phases (both HV and LV side).
+                           - Voltage applied across phases (e.g. 230V across 1U-1V, 1V-1W, 1W-1U).
+                           - Measured induced voltages across other phases (HV and LV windings).
                         2. **MAGNETIZING CURRENT TEST**:
                            - Low-voltage excitation test currents in mA or Amps for all phases (1U, 1V, 1W).
                         3. **SHORT CIRCUIT IMPEDANCE / LOAD TEST**:
-                           - Applied Voltage (V), Test Current (A), Induced Current, and % Impedance calculations.
-                           - Shorted side vs Energized side parameters.
+                           - Applied Voltage (V), Rated Current (A), Induced Current, % Impedance (%Z), and Loss values.
                         4. **VECTOR GROUP & POLARITY TEST**:
-                           - Voltage measurements verifying vector connection (Dyn11, YNd11, etc.) and polarity markings.
+                           - Voltage relationship checks verifying vector configuration (Dyn11, YNd11, etc.) and polarity test results.
                         5. **INSULATION RESISTANCE (IR / MEGGER) & TAN DELTA / CAPACITANCE**:
-                           - HV-LV, HV-E, LV-E (15s, 60s, 600s, PI, DAR values).
-                           - Bushing C1, C2 and winding Tan Delta percentages and pF capacitance.
+                           - HV-LV, HV-E, LV-E values (15s, 60s, 600s, PI, DAR).
+                           - Bushing C1, C2, and Winding Tan-Delta % and Capacitance (pF).
                         6. **WINDING RESISTANCE**:
-                           - Tap positions (Tap 1 to max tap) for all phases.
+                           - Tap-wise resistance across all taps and phase terminals.
 
                         ### WORD TEMPLATE LAYOUT:
                         {template_map}
 
-                        ### STRICT EXTRACTION RULES:
+                        ### STRICT RULES:
                         - Do NOT truncate output. You MUST capture Magnetic Balance, Magnetizing Current, Polarity, and Short Circuit tables completely.
-                        - Only place values into [EMPTY_WRITEABLE] or placeholder cells.
+                        - Only place extracted values into [EMPTY_WRITEABLE] or placeholder cells.
                         - Match test names carefully to Table titles and headers in the template layout.
 
                         Output strictly a JSON object:
@@ -243,7 +191,6 @@ if menu == "⚡ AI Report Auto-Filler":
                         for model_name in candidate_models:
                             for attempt in range(3):
                                 try:
-                                    status.info(f"Extracting test records using {model_name} (Attempt {attempt + 1})...")
                                     response = client.models.generate_content(
                                         model=model_name,
                                         contents=[prompt, file_part],
@@ -269,7 +216,7 @@ if menu == "⚡ AI Report Auto-Filler":
                         if not response or not response.text:
                             raise last_error if last_error else Exception("Processing failed. Please retry.")
 
-                        status.info("Step 3/3: Injecting and formatting extracted test data into Word document...")
+                        status.info("Writing extracted readings into Word document...")
                         mapping = json.loads(response.text)
 
                         # Paragraph Updates
@@ -277,9 +224,7 @@ if menu == "⚡ AI Report Auto-Filler":
                             idx = p_up.get("index")
                             val = p_up.get("append_value", "")
                             if idx is not None and idx < len(doc.paragraphs) and val:
-                                p_obj = doc.paragraphs[idx]
-                                run = p_obj.add_run(f" {val}")
-                                run.bold = True
+                                doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
 
                         # Table Updates
                         updated_count = 0
@@ -294,18 +239,14 @@ if menu == "⚡ AI Report Auto-Filler":
                                 if r_idx is not None and r_idx < len(tbl.rows):
                                     row = tbl.rows[r_idx]
                                     if c_idx is not None and c_idx < len(row.cells):
-                                        cell = row.cells[c_idx]
-                                        cell.text = ""  # Clear placeholder
-                                        p = cell.paragraphs[0]
-                                        run = p.add_run(str(val))
-                                        run.bold = True  # Highlighting filled test data
+                                        row.cells[c_idx].text = str(val)
                                         updated_count += 1
 
                         bio = io.BytesIO()
                         doc.save(bio)
                         status.empty()
 
-                        st.success(f"✅ Success! Populated {updated_count} test cells (including Magnetic Balance, Short Circuit & Polarity).")
+                        st.success(f"✅ Report generated successfully! Extracted and filled {updated_count} test parameters.")
                         st.download_button(
                             label="📥 Download Completed Word Document",
                             data=bio.getvalue(),
@@ -321,9 +262,9 @@ if menu == "⚡ AI Report Auto-Filler":
     with col2:
         st.markdown("""
         <div class="ad-card">
-            <h4 style="color:#38bdf8;">⚡ Industry Solutions</h4>
-            <p style="color:#94a3b8;">High Voltage Transformer Testing & Relay Calibration Services.</p>
-            <button style="background:linear-gradient(90deg, #0284c7, #2563eb); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Contact Experts</button>
+            <h4>⚡ Industry Solutions</h4>
+            <p>High Voltage Transformer Testing & Relay Calibration Services.</p>
+            <button style="background-color:#1E88E5; color:white; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Contact Experts</button>
         </div>
         """, unsafe_allow_html=True)
 
@@ -342,9 +283,9 @@ elif menu == "📰 Tech Blogs & Vlogs":
             with st.container():
                 st.markdown(f"""
                 <div class="blog-card">
-                    <span style="color:#38bdf8; font-weight:700; text-transform:uppercase;">🏷️ {blog.get('category', 'Technical')}</span>
-                    <h3 style="margin-top:8px; color:#f8fafc;">{blog['title']}</h3>
-                    <p style="color:#cbd5e1;">{blog['content']}</p>
+                    <span style="color:#1E88E5; font-weight:600;">🏷️ {blog.get('category', 'Technical')}</span>
+                    <h3 style="margin-top:5px;">{blog['title']}</h3>
+                    <p>{blog['content']}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 if blog.get("video_url"):
@@ -405,7 +346,7 @@ elif menu == "📢 Sponsor Ads":
     
     st.markdown("""
     <div class="ad-card" style="padding:40px;">
-        <h2 style="color:#f8fafc;">Banner Slot (728x90 / Responsive)</h2>
-        <p style="color:#94a3b8;">Your Google AdSense or Direct Client Banner will appear here.</p>
+        <h2>Banner Slot (728x90 / Responsive)</h2>
+        <p>Your Google AdSense or Direct Client Banner will appear here.</p>
     </div>
     """, unsafe_allow_html=True)
