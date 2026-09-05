@@ -10,7 +10,6 @@ import time
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
 ADMIN_PASSWORD = "Sajjad@786"
 
-# Session State for Authentication
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 
@@ -21,7 +20,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling (CSS)
+# Custom Styling
 st.markdown("""
 <style>
     .main-header {
@@ -75,7 +74,6 @@ with st.sidebar:
     menu = st.radio("Navigation", ["⚡ AI Report Auto-Filler", "📰 Tech Blogs & Vlogs", "🔒 Post New Blog (Admin)", "📢 Sponsor Ads"])
     
     st.divider()
-    # Ad Slot Sidebar
     st.markdown("""
     <div class="ad-card">
         <small style="color: #888;">SPONSORED</small><br>
@@ -95,16 +93,24 @@ if menu == "⚡ AI Report Auto-Filler":
         template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
         uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
 
-        def get_template_text(doc):
+        def get_template_structure(doc):
             structure = []
             for i, p in enumerate(doc.paragraphs):
-                if p.text.strip():
-                    structure.append(f"Paragraph {i}: {p.text.strip()}")
+                txt = p.text.strip()
+                if txt:
+                    structure.append(f"P[{i}]: {txt}")
+            
             for t_idx, tbl in enumerate(doc.tables):
-                structure.append(f"\n--- Table {t_idx} ---")
+                structure.append(f"\n=== TABLE {t_idx} (Rows: {len(tbl.rows)}, Cols: {len(tbl.columns) if tbl.rows else 0}) ===")
                 for r_idx, row in enumerate(tbl.rows):
-                    row_vals = [f"[Cell {c_idx}]: {cell.text.strip()}" for c_idx, cell in enumerate(row.cells)]
-                    structure.append(f"Row {r_idx}: " + " | ".join(row_vals))
+                    row_content = []
+                    for c_idx, cell in enumerate(row.cells):
+                        val = cell.text.strip().replace("\n", " ")
+                        if not val:
+                            row_content.append(f"R{r_idx}C{c_idx}:[EMPTY_WRITEABLE]")
+                        else:
+                            row_content.append(f"R{r_idx}C{c_idx}:{val}")
+                    structure.append(" | ".join(row_content))
             return "\n".join(structure)
 
         if template_file and uploaded_report:
@@ -112,14 +118,14 @@ if menu == "⚡ AI Report Auto-Filler":
                 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
                 if not api_key:
-                    st.error("API Key backend secrets.toml me configure nahi mili. Kripya secrets set karein.")
+                    st.error("API Key backend secrets mein nahi mili.")
                 else:
-                    status_placeholder = st.empty()
-                    status_placeholder.info("Reading template and site documents...")
+                    status = st.empty()
+                    status.info("Step 1/3: Reading and indexing Word document tables...")
 
                     try:
                         doc = Document(template_file)
-                        template_structure = get_template_text(doc)
+                        template_map = get_template_structure(doc)
 
                         if uploaded_report.type == "application/pdf":
                             file_bytes = uploaded_report.getvalue()
@@ -128,90 +134,124 @@ if menu == "⚡ AI Report Auto-Filler":
                             img = Image.open(uploaded_report)
                             if img.mode != 'RGB':
                                 img = img.convert('RGB')
-                            img.thumbnail((1600, 1600))
+                            img.thumbnail((2000, 2000))
                             buf = io.BytesIO()
-                            img.save(buf, format='JPEG', quality=85)
+                            img.save(buf, format='JPEG', quality=90)
                             file_bytes = buf.getvalue()
                             mime_type = "image/jpeg"
 
                         client = genai.Client(api_key=api_key)
                         file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-                        prompt = f"""
-                        You are an OCR and Document Automation Specialist.
-                        Extract all handwritten entries from the uploaded document and map them into the provided Word document structure:
-                        {template_structure}
+                        status.info("Step 2/3: AI deep-scanning all test sections (Short Circuit, Balance, Polarity)...")
 
-                        Return strictly a JSON object:
+                        prompt = f"""
+                        You are a Senior Transformer Testing & Commissioning Specialist with high-precision OCR abilities.
+                        You must extract EVERY handwritten value from the site record and map it to the corresponding Word table cell.
+
+                        ### MANDATORY ELECTRICAL TEST SECTIONS TO EXTRACT:
+                        1. **MAGNETIC BALANCE TEST**:
+                           - Voltage applied across phases (e.g., 230V on 1U-1V, 1V-1W, 1W-1U).
+                           - Induced voltages across other phases (both HV and LV side).
+                        2. **MAGNETIZING CURRENT TEST**:
+                           - Low-voltage excitation test currents in mA or Amps for all phases (1U, 1V, 1W).
+                        3. **SHORT CIRCUIT IMPEDANCE / LOAD TEST**:
+                           - Applied Voltage (V), Test Current (A), Induced Current, and % Impedance calculations.
+                           - Shorted side vs Energized side parameters.
+                        4. **VECTOR GROUP & POLARITY TEST**:
+                           - Voltage measurements verifying vector connection (Dyn11, YNd11, etc.) and polarity markings.
+                        5. **INSULATION RESISTANCE (IR / MEGGER) & TAN DELTA / CAPACITANCE**:
+                           - HV-LV, HV-E, LV-E (15s, 60s, 600s, PI, DAR values).
+                           - Bushing C1, C2 and winding Tan Delta percentages and pF capacitance.
+                        6. **WINDING RESISTANCE**:
+                           - Tap positions (Tap 1 to max tap) for all phases.
+
+                        ### WORD TEMPLATE LAYOUT:
+                        {template_map}
+
+                        ### STRICT EXTRACTION RULES:
+                        - Do NOT truncate output. You MUST capture Magnetic Balance, Magnetizing Current, Polarity, and Short Circuit tables completely.
+                        - Only place values into [EMPTY_WRITEABLE] or placeholder cells.
+                        - Match test names carefully to Table titles and headers in the template layout.
+
+                        Output strictly a JSON object:
                         {{
-                          "paragraph_updates": [{{"index": 0, "text_to_append_or_replace": "Value"}}],
-                          "table_updates": [{{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "Value"}}]
+                          "paragraph_updates": [
+                            {{"index": 0, "append_value": "..."}}
+                          ],
+                          "table_updates": [
+                            {{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "..."}}
+                          ]
                         }}
                         """
 
-                        # Smart Fallback & Retry Logic
-                        candidate_models = ['gemini-3.6-flash', 'gemini-3.5-flash']
+                        candidate_models = ['gemini-2.5-pro', 'gemini-2.5-flash']
                         response = None
                         last_error = None
 
                         for model_name in candidate_models:
-                            for attempt in range(2):
-                                try:
-                                    status_placeholder.info(f"Connecting with {model_name} (Attempt {attempt + 1})...")
-                                    response = client.models.generate_content(
-                                        model=model_name,
-                                        contents=[prompt, file_part],
-                                        config=types.GenerateContentConfig(response_mime_type="application/json")
+                            try:
+                                status.info(f"Extracting test records using {model_name}...")
+                                response = client.models.generate_content(
+                                    model=model_name,
+                                    contents=[prompt, file_part],
+                                    config=types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        temperature=0.0,
+                                        max_output_tokens=8192
                                     )
-                                    if response and response.text:
-                                        break
-                                except Exception as err:
-                                    last_error = err
-                                    err_str = str(err).lower()
-                                    if "503" in err_str or "unavailable" in err_str or "resource_exhausted" in err_str:
-                                        time.sleep(3)
-                                        continue
-                                    else:
-                                        raise err
-                            if response and response.text:
-                                break
+                                )
+                                if response and response.text:
+                                    break
+                            except Exception as err:
+                                last_error = err
+                                time.sleep(3)
+                                continue
 
                         if not response or not response.text:
-                            raise last_error if last_error else Exception("Server busy. Please try again.")
+                            raise last_error if last_error else Exception("Processing failed. Please retry.")
 
-                        status_placeholder.empty()
-
+                        status.info("Step 3/3: Injecting extracted test data into Word format...")
                         mapping = json.loads(response.text)
 
-                        # Updates in Word Document
+                        # Paragraph Updates
                         for p_up in mapping.get("paragraph_updates", []):
                             idx = p_up.get("index")
-                            val = p_up.get("text_to_append_or_replace", "")
-                            if idx is not None and idx < len(doc.paragraphs):
+                            val = p_up.get("append_value", "")
+                            if idx is not None and idx < len(doc.paragraphs) and val:
                                 doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
 
+                        # Table Updates
+                        updated_count = 0
                         for t_up in mapping.get("table_updates", []):
-                            t_idx = t_up.get("table_idx", 0)
-                            r_idx = t_up.get("row_idx", 0)
-                            c_idx = t_up.get("col_idx", 0)
+                            t_idx = t_up.get("table_idx")
+                            r_idx = t_up.get("row_idx")
+                            c_idx = t_up.get("col_idx")
                             val = t_up.get("value", "")
-                            if t_idx < len(doc.tables):
+
+                            if t_idx is not None and t_idx < len(doc.tables):
                                 tbl = doc.tables[t_idx]
-                                if r_idx < len(tbl.rows) and c_idx < len(tbl.rows[r_idx].cells):
-                                    tbl.rows[r_idx].cells[c_idx].text = str(val)
+                                if r_idx is not None and r_idx < len(tbl.rows):
+                                    row = tbl.rows[r_idx]
+                                    if c_idx is not None and c_idx < len(row.cells):
+                                        row.cells[c_idx].text = str(val)
+                                        updated_count += 1
 
                         bio = io.BytesIO()
                         doc.save(bio)
-                        st.success("✅ Report generated successfully!")
+                        status.empty()
+
+                        st.success(f"✅ Success! Populated {updated_count} test cells (including Magnetic Balance & Short Circuit).")
                         st.download_button(
                             label="📥 Download Completed Word Document",
                             data=bio.getvalue(),
-                            file_name="Completed_Report.docx",
+                            file_name="Completed_Transformer_Report.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             use_container_width=True
                         )
+
                     except Exception as e:
-                        status_placeholder.empty()
+                        status.empty()
                         st.error(f"Error: {e}")
 
     with col2:
@@ -228,9 +268,7 @@ elif menu == "📰 Tech Blogs & Vlogs":
     st.markdown('<p class="main-header">📰 Technical Articles, Vlogs & News</p>', unsafe_allow_html=True)
     st.write("Latest updates on Power Systems, Substation Automation, Travels, and Industry News.")
 
-    # Category Filter
     selected_cat = st.radio("Filter By Category:", ["All", "Technical", "Traveling", "News"], horizontal=True)
-
     filtered_blogs = st.session_state.blogs if selected_cat == "All" else [b for b in st.session_state.blogs if b.get("category") == selected_cat]
 
     if not filtered_blogs:
@@ -249,7 +287,7 @@ elif menu == "📰 Tech Blogs & Vlogs":
                     st.video(blog["video_url"])
                 st.divider()
 
-# ----------------- PAGE 3: POST NEW BLOG (PASSWORD PROTECTED) -----------------
+# ----------------- PAGE 3: POST NEW BLOG (ADMIN) -----------------
 elif menu == "🔒 Post New Blog (Admin)":
     st.markdown('<p class="main-header">✍️ Admin Post Studio</p>', unsafe_allow_html=True)
 
