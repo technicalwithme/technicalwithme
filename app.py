@@ -91,9 +91,7 @@ if menu == "⚡ AI Report Auto-Filler":
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        # API Key Section
-        api_key = st.text_input("Enter Gemini API Key (or set in secrets.toml):", type="password")
-
+        # Sirf do upload boxes dikhenge
         template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
         uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
 
@@ -111,8 +109,11 @@ if menu == "⚡ AI Report Auto-Filler":
 
         if template_file and uploaded_report:
             if st.button("🚀 Generate Final Report", use_container_width=True):
+                # Backend Secrets se API Key auto fetch
+                api_key = st.secrets.get("GEMINI_API_KEY", "")
+
                 if not api_key:
-                    st.error("Please enter your Gemini API Key first.")
+                    st.error("API Key backend secrets.toml me configure nahi mili. Kripya secrets set karein.")
                 else:
                     with st.spinner("Processing handwritten sheet and mapping to template..."):
                         try:
