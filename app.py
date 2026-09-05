@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 import json
 import io
+import re
 import time
 
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
@@ -20,7 +21,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling (CSS)
+# Custom Styling
 st.markdown("""
 <style>
     .main-header {
@@ -59,9 +60,9 @@ st.markdown("""
 if "blogs" not in st.session_state:
     st.session_state.blogs = [
         {
-            "title": "Transformer Tan-Delta & Capacitance Testing Best Practices",
+            "title": "Transformer & CT Testing Best Practices",
             "category": "Technical",
-            "content": "Tan-Delta testing is crucial for assessing insulation degradation in bushings and windings. Maintaining ambient temperature records and using shielded cables prevents noise during 10kV test voltages.",
+            "content": "Tan-Delta, Knee Point Voltage, and Winding Resistance measurements are critical for evaluating switchyard asset health before commissioning.",
             "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         }
     ]
@@ -82,15 +83,33 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+# Helper function to extract clean JSON
+def clean_json_response(raw_text):
+    if not raw_text or not raw_text.strip():
+        raise ValueError("AI ne empty response diya. Kripya image/PDF ki clarity check karein aur dobara try karein.")
+    
+    # Strip markdown backticks if present
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+    if match:
+        return match.group(1)
+    
+    # Fallback to extracting anything between first { and last }
+    first_brace = raw_text.find("{")
+    last_brace = raw_text.rfind("}")
+    if first_brace != -1 and last_brace != -1:
+        return raw_text[first_brace:last_brace + 1]
+    
+    return raw_text
+
 # ----------------- PAGE 1: AI AUTO-FILLER -----------------
 if menu == "⚡ AI Report Auto-Filler":
-    st.markdown('<p class="main-header">⚡ AI Transformer Report Auto-Filler</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">⚡ AI Transformer & Bay Report Auto-Filler</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
+        template_file = st.file_uploader("1. Blank Format (.docx)", type=["docx"])
         uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
 
         def get_template_structure(doc):
@@ -121,7 +140,7 @@ if menu == "⚡ AI Report Auto-Filler":
                     st.error("API Key backend secrets mein nahi mili.")
                 else:
                     status = st.empty()
-                    status.info("Reading document format and site sheet...")
+                    status.info("Step 1/3: Reading template document layout...")
 
                     try:
                         doc = Document(template_file)
@@ -143,37 +162,25 @@ if menu == "⚡ AI Report Auto-Filler":
                         client = genai.Client(api_key=api_key)
                         file_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-                        status.info("AI extracting all electrical test records...")
+                        status.info("Step 2/3: AI deep-scanning site test records...")
 
                         prompt = f"""
-                        You are an expert Transformer Testing & Commissioning Specialist with high-precision OCR abilities.
-                        Your task is to thoroughly analyze the handwritten test sheet and map EVERY test reading into the Word document format.
+                        You are a Senior Electrical Testing & Commissioning Specialist with expert OCR skills.
+                        Read all handwritten values from the uploaded test report (Power Transformer / Current Transformer CT / Voltage Transformer / Substation Bay Equipment) and accurately map every reading into the Word document structure.
 
-                        ### MANDATORY TRANSFORMER TESTS TO EXTRACT:
-                        1. **MAGNETIC BALANCE TEST**:
-                           - Voltage applied across phases (e.g. 230V across 1U-1V, 1V-1W, 1W-1U).
-                           - Measured induced voltages across other phases (HV and LV windings).
-                        2. **MAGNETIZING CURRENT TEST**:
-                           - Low-voltage excitation test currents in mA or Amps for all phases (1U, 1V, 1W).
-                        3. **SHORT CIRCUIT IMPEDANCE / LOAD TEST**:
-                           - Applied Voltage (V), Rated Current (A), Induced Current, % Impedance (%Z), and Loss values.
-                        4. **VECTOR GROUP & POLARITY TEST**:
-                           - Voltage relationship checks verifying vector configuration (Dyn11, YNd11, etc.) and polarity test results.
-                        5. **INSULATION RESISTANCE (IR / MEGGER) & TAN DELTA / CAPACITANCE**:
-                           - HV-LV, HV-E, LV-E values (15s, 60s, 600s, PI, DAR).
-                           - Bushing C1, C2, and Winding Tan-Delta % and Capacitance (pF).
-                        6. **WINDING RESISTANCE**:
-                           - Tap-wise resistance across all taps and phase terminals.
+                        ### ELECTRICAL TEST CONTEXT:
+                        - **Power Transformer Tests**: Insulation Resistance (HV-LV, HV-E, LV-E, PI, DAR), Winding Resistance, Voltage Ratio, Vector Group, Magnetic Balance, Magnetizing Current, Short Circuit Impedance, Bushing/Winding Tan-Delta & Capacitance.
+                        - **Current Transformer (CT) Tests**: Insulation Resistance (Primary-Secondary, P-E, S-E), Secondary Winding Resistance, CT Ratio Test (Primary Injection / Voltage Method), Polarity Test, Knee Point Voltage (Vk) & Excitation Current (Imag), Burden & Loop Resistance.
+                        - **General Info**: Substation Name, Bay No., Make, Serial No., Ratio, Voltage Class, Ambient/Oil Temp.
 
                         ### WORD TEMPLATE LAYOUT:
                         {template_map}
 
-                        ### STRICT RULES:
-                        - Do NOT truncate output. You MUST capture Magnetic Balance, Magnetizing Current, Polarity, and Short Circuit tables completely.
-                        - Only place extracted values into [EMPTY_WRITEABLE] or placeholder cells.
-                        - Match test names carefully to Table titles and headers in the template layout.
-
-                        Output strictly a JSON object:
+                        ### EXTRACTION RULES:
+                        1. Extract every handwritten reading, measurement, and notation accurately.
+                        2. Only map values to [EMPTY_WRITEABLE] or placeholder cells in the matching table.
+                        3. Preserve all existing titles and column headers.
+                        4. Output STRICTLY a valid JSON object matching this schema:
                         {{
                           "paragraph_updates": [
                             {{"index": 0, "append_value": "..."}}
@@ -191,6 +198,7 @@ if menu == "⚡ AI Report Auto-Filler":
                         for model_name in candidate_models:
                             for attempt in range(3):
                                 try:
+                                    status.info(f"Extracting test records using {model_name} (Attempt {attempt + 1})...")
                                     response = client.models.generate_content(
                                         model=model_name,
                                         contents=[prompt, file_part],
@@ -214,10 +222,12 @@ if menu == "⚡ AI Report Auto-Filler":
                                 break
 
                         if not response or not response.text:
-                            raise last_error if last_error else Exception("Processing failed. Please retry.")
+                            raise last_error if last_error else Exception("AI response empty. Please retry.")
 
-                        status.info("Writing extracted readings into Word document...")
-                        mapping = json.loads(response.text)
+                        status.info("Step 3/3: Parsing data and writing into Word file...")
+                        
+                        clean_json = clean_json_response(response.text)
+                        mapping = json.loads(clean_json)
 
                         # Paragraph Updates
                         for p_up in mapping.get("paragraph_updates", []):
@@ -246,11 +256,11 @@ if menu == "⚡ AI Report Auto-Filler":
                         doc.save(bio)
                         status.empty()
 
-                        st.success(f"✅ Report generated successfully! Extracted and filled {updated_count} test parameters.")
+                        st.success(f"✅ Report generated successfully! Populated {updated_count} test cells.")
                         st.download_button(
                             label="📥 Download Completed Word Document",
                             data=bio.getvalue(),
-                            file_name="Completed_Transformer_Report.docx",
+                            file_name="Completed_Testing_Report.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             use_container_width=True
                         )
@@ -263,7 +273,7 @@ if menu == "⚡ AI Report Auto-Filler":
         st.markdown("""
         <div class="ad-card">
             <h4>⚡ Industry Solutions</h4>
-            <p>High Voltage Transformer Testing & Relay Calibration Services.</p>
+            <p>High Voltage Transformer & Switchyard Testing Services.</p>
             <button style="background-color:#1E88E5; color:white; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Contact Experts</button>
         </div>
         """, unsafe_allow_html=True)
