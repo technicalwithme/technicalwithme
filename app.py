@@ -83,23 +83,29 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Helper function to extract clean JSON
-def clean_json_response(raw_text):
+def parse_robust_json(raw_text):
     if not raw_text or not raw_text.strip():
-        raise ValueError("AI ne empty response diya. Kripya image/PDF ki clarity check karein aur dobara try karein.")
+        raise ValueError("AI returned empty content. Please verify PDF/image readability.")
     
-    # Strip markdown backticks if present
-    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+    clean = raw_text.strip()
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean, re.DOTALL)
     if match:
-        return match.group(1)
-    
-    # Fallback to extracting anything between first { and last }
-    first_brace = raw_text.find("{")
-    last_brace = raw_text.rfind("}")
-    if first_brace != -1 and last_brace != -1:
-        return raw_text[first_brace:last_brace + 1]
-    
-    return raw_text
+        clean = match.group(1)
+    else:
+        fb = clean.find("{")
+        lb = clean.rfind("}")
+        if fb != -1 and lb != -1:
+            clean = clean[fb:lb+1]
+            
+    # Sanitize illegal control characters inside strings
+    clean = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', clean)
+
+    try:
+        return json.loads(clean)
+    except Exception:
+        # Fallback: fix trailing commas or common delimiter faults
+        fixed = re.sub(r',\s*([\]}])', r'\1', clean)
+        return json.loads(fixed)
 
 # ----------------- PAGE 1: AI AUTO-FILLER -----------------
 if menu == "⚡ AI Report Auto-Filler":
@@ -126,7 +132,7 @@ if menu == "⚡ AI Report Auto-Filler":
                     for c_idx, cell in enumerate(row.cells):
                         val = cell.text.strip().replace("\n", " ")
                         if not val:
-                            row_content.append(f"R{r_idx}C{c_idx}:[EMPTY_WRITEABLE]")
+                            row_content.append(f"R{r_idx}C{c_idx}:[EMPTY]")
                         else:
                             row_content.append(f"R{r_idx}C{c_idx}:{val}")
                     structure.append(" | ".join(row_content))
@@ -165,29 +171,22 @@ if menu == "⚡ AI Report Auto-Filler":
                         status.info("Step 2/3: AI deep-scanning site test records...")
 
                         prompt = f"""
-                        You are a Senior Electrical Testing & Commissioning Specialist with expert OCR skills.
-                        Read all handwritten values from the uploaded test report (Power Transformer / Current Transformer CT / Voltage Transformer / Substation Bay Equipment) and accurately map every reading into the Word document structure.
+                        You are a Lead Switchyard Testing Engineer.
+                        Extract handwritten test readings from the document (covering Power Transformers, Current Transformers CT, PT/CVT, or Bay equipment).
+                        Map each extracted measurement strictly into the corresponding [EMPTY] or blank cells of the Word document layout.
 
-                        ### ELECTRICAL TEST CONTEXT:
-                        - **Power Transformer Tests**: Insulation Resistance (HV-LV, HV-E, LV-E, PI, DAR), Winding Resistance, Voltage Ratio, Vector Group, Magnetic Balance, Magnetizing Current, Short Circuit Impedance, Bushing/Winding Tan-Delta & Capacitance.
-                        - **Current Transformer (CT) Tests**: Insulation Resistance (Primary-Secondary, P-E, S-E), Secondary Winding Resistance, CT Ratio Test (Primary Injection / Voltage Method), Polarity Test, Knee Point Voltage (Vk) & Excitation Current (Imag), Burden & Loop Resistance.
-                        - **General Info**: Substation Name, Bay No., Make, Serial No., Ratio, Voltage Class, Ambient/Oil Temp.
+                        ### TESTS TO EXTRACT:
+                        - CT Tests: Ratio, Polarity, Knee Point Voltage (Vk), Excitation Current (Imag), Secondary Winding Resistance, Burden, Insulation Resistance (Primary-Earth, Sec-Earth).
+                        - Transformer Tests: Magnetic Balance, Magnetizing Current, Short Circuit %Z, IR/Megger, Tan Delta & Capacitance, Winding Resistance.
 
                         ### WORD TEMPLATE LAYOUT:
                         {template_map}
 
-                        ### EXTRACTION RULES:
-                        1. Extract every handwritten reading, measurement, and notation accurately.
-                        2. Only map values to [EMPTY_WRITEABLE] or placeholder cells in the matching table.
-                        3. Preserve all existing titles and column headers.
-                        4. Output STRICTLY a valid JSON object matching this schema:
+                        ### STRICT FORMATTING:
+                        Return strictly valid JSON with no trailing commas, properly escaped quotes, matching:
                         {{
-                          "paragraph_updates": [
-                            {{"index": 0, "append_value": "..."}}
-                          ],
-                          "table_updates": [
-                            {{"table_idx": 0, "row_idx": 1, "col_idx": 2, "value": "..."}}
-                          ]
+                          "paragraph_updates": [{{"index": 0, "append_value": "text"}}],
+                          "table_updates": [{{"table_idx": 0, "row_idx": 0, "col_idx": 0, "value": "text"}}]
                         }}
                         """
 
@@ -224,10 +223,9 @@ if menu == "⚡ AI Report Auto-Filler":
                         if not response or not response.text:
                             raise last_error if last_error else Exception("AI response empty. Please retry.")
 
-                        status.info("Step 3/3: Parsing data and writing into Word file...")
+                        status.info("Step 3/3: Formatting and writing into Word file...")
                         
-                        clean_json = clean_json_response(response.text)
-                        mapping = json.loads(clean_json)
+                        mapping = parse_robust_json(response.text)
 
                         # Paragraph Updates
                         for p_up in mapping.get("paragraph_updates", []):
