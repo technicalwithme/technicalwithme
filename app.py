@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 from docx import Document
+from docx.shared import Pt, RGBColor
 from google import genai
 from google.genai import types
 import json
@@ -20,36 +21,69 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling
+# Custom Styling (CSS)
 st.markdown("""
 <style>
     .main-header {
         font-size: 2.2rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #1E88E5, #00E676);
+        font-weight: 800;
+        background: linear-gradient(90deg, #0284c7, #38bdf8);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
+        margin-bottom: 2px;
     }
     .sub-text {
         font-size: 1rem;
-        color: #6c757d;
-        margin-bottom: 20px;
+        color: #94a3b8;
+        margin-bottom: 15px;
+    }
+    /* Highlighted Test Badges */
+    .test-badge-box {
+        background: #0f172a;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 22px;
+    }
+    .badge-title {
+        color: #38bdf8;
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .badges-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .test-badge {
+        background: rgba(2, 132, 199, 0.15);
+        color: #e0f2fe;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
     }
     .ad-card {
-        background-color: #f8f9fa;
-        border: 2px dashed #00E676;
-        border-radius: 10px;
-        padding: 15px;
+        background-color: #111827;
+        border: 1px dashed rgba(56, 189, 248, 0.5);
+        border-radius: 12px;
+        padding: 18px;
         text-align: center;
         margin: 15px 0;
     }
     .blog-card {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
+        background: #111827;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
         padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         margin-bottom: 20px;
     }
 </style>
@@ -76,9 +110,9 @@ with st.sidebar:
     st.divider()
     st.markdown("""
     <div class="ad-card">
-        <small style="color: #888;">SPONSORED</small><br>
-        <b>Omicron CPC 100 & Testing Kits</b><br>
-        <span style="font-size: 12px; color: #555;">Reliable Switchyard Commissioning Tools</span>
+        <small style="color: #38bdf8; font-weight:700;">SPONSORED</small><br>
+        <b style="color:#f8fafc;">Omicron CPC 100 & Testing Kits</b><br>
+        <span style="font-size: 12px; color: #94a3b8;">Reliable Switchyard Commissioning Tools</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -86,6 +120,23 @@ with st.sidebar:
 if menu == "⚡ AI Report Auto-Filler":
     st.markdown('<p class="main-header">⚡ AI Transformer Report Auto-Filler</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
+
+    # VISUAL HIGHLIGHT: TRANSFORMER TESTS BADGES
+    st.markdown("""
+    <div class="test-badge-box">
+        <div class="badge-title">🎯 Fully Supported Transformer Test Auto-Fills:</div>
+        <div class="badges-container">
+            <span class="test-badge">⚡ Magnetic Balance Test</span>
+            <span class="test-badge">🔌 Magnetizing Current Test</span>
+            <span class="test-badge">🛡️ Short Circuit Impedance (%Z)</span>
+            <span class="test-badge">📊 Insulation Resistance (IR / PI / DAR)</span>
+            <span class="test-badge">🌀 Winding Resistance (Tap-wise)</span>
+            <span class="test-badge">🔄 Voltage Ratio & Vector Group</span>
+            <span class="test-badge">📈 Tan-Delta & Capacitance (Bushings/Windings)</span>
+            <span class="test-badge">🧭 Polarity & Neutral Grounding</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
@@ -185,33 +236,40 @@ if menu == "⚡ AI Report Auto-Filler":
                         }}
                         """
 
-                        candidate_models = ['gemini-2.5-pro', 'gemini-2.5-flash']
+                        candidate_models = ['gemini-3.6-flash']
                         response = None
                         last_error = None
 
                         for model_name in candidate_models:
-                            try:
-                                status.info(f"Extracting test records using {model_name}...")
-                                response = client.models.generate_content(
-                                    model=model_name,
-                                    contents=[prompt, file_part],
-                                    config=types.GenerateContentConfig(
-                                        response_mime_type="application/json",
-                                        temperature=0.0,
-                                        max_output_tokens=8192
+                            for attempt in range(3):
+                                try:
+                                    status.info(f"Extracting test records using {model_name} (Attempt {attempt + 1})...")
+                                    response = client.models.generate_content(
+                                        model=model_name,
+                                        contents=[prompt, file_part],
+                                        config=types.GenerateContentConfig(
+                                            response_mime_type="application/json",
+                                            temperature=0.0,
+                                            max_output_tokens=8192
+                                        )
                                     )
-                                )
-                                if response and response.text:
-                                    break
-                            except Exception as err:
-                                last_error = err
-                                time.sleep(3)
-                                continue
+                                    if response and response.text:
+                                        break
+                                except Exception as err:
+                                    last_error = err
+                                    err_msg = str(err).lower()
+                                    if "503" in err_msg or "unavailable" in err_msg or "resource_exhausted" in err_msg:
+                                        time.sleep(4)
+                                        continue
+                                    else:
+                                        raise err
+                            if response and response.text:
+                                break
 
                         if not response or not response.text:
                             raise last_error if last_error else Exception("Processing failed. Please retry.")
 
-                        status.info("Step 3/3: Injecting extracted test data into Word format...")
+                        status.info("Step 3/3: Injecting and formatting extracted test data into Word document...")
                         mapping = json.loads(response.text)
 
                         # Paragraph Updates
@@ -219,7 +277,9 @@ if menu == "⚡ AI Report Auto-Filler":
                             idx = p_up.get("index")
                             val = p_up.get("append_value", "")
                             if idx is not None and idx < len(doc.paragraphs) and val:
-                                doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
+                                p_obj = doc.paragraphs[idx]
+                                run = p_obj.add_run(f" {val}")
+                                run.bold = True
 
                         # Table Updates
                         updated_count = 0
@@ -234,14 +294,18 @@ if menu == "⚡ AI Report Auto-Filler":
                                 if r_idx is not None and r_idx < len(tbl.rows):
                                     row = tbl.rows[r_idx]
                                     if c_idx is not None and c_idx < len(row.cells):
-                                        row.cells[c_idx].text = str(val)
+                                        cell = row.cells[c_idx]
+                                        cell.text = ""  # Clear placeholder
+                                        p = cell.paragraphs[0]
+                                        run = p.add_run(str(val))
+                                        run.bold = True  # Highlighting filled test data
                                         updated_count += 1
 
                         bio = io.BytesIO()
                         doc.save(bio)
                         status.empty()
 
-                        st.success(f"✅ Success! Populated {updated_count} test cells (including Magnetic Balance & Short Circuit).")
+                        st.success(f"✅ Success! Populated {updated_count} test cells (including Magnetic Balance, Short Circuit & Polarity).")
                         st.download_button(
                             label="📥 Download Completed Word Document",
                             data=bio.getvalue(),
@@ -257,9 +321,9 @@ if menu == "⚡ AI Report Auto-Filler":
     with col2:
         st.markdown("""
         <div class="ad-card">
-            <h4>⚡ Industry Solutions</h4>
-            <p>High Voltage Transformer Testing & Relay Calibration Services.</p>
-            <button style="background-color:#1E88E5; color:white; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Contact Experts</button>
+            <h4 style="color:#38bdf8;">⚡ Industry Solutions</h4>
+            <p style="color:#94a3b8;">High Voltage Transformer Testing & Relay Calibration Services.</p>
+            <button style="background:linear-gradient(90deg, #0284c7, #2563eb); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Contact Experts</button>
         </div>
         """, unsafe_allow_html=True)
 
@@ -278,9 +342,9 @@ elif menu == "📰 Tech Blogs & Vlogs":
             with st.container():
                 st.markdown(f"""
                 <div class="blog-card">
-                    <span style="color:#1E88E5; font-weight:600;">🏷️ {blog.get('category', 'Technical')}</span>
-                    <h3 style="margin-top:5px;">{blog['title']}</h3>
-                    <p>{blog['content']}</p>
+                    <span style="color:#38bdf8; font-weight:700; text-transform:uppercase;">🏷️ {blog.get('category', 'Technical')}</span>
+                    <h3 style="margin-top:8px; color:#f8fafc;">{blog['title']}</h3>
+                    <p style="color:#cbd5e1;">{blog['content']}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 if blog.get("video_url"):
@@ -341,7 +405,7 @@ elif menu == "📢 Sponsor Ads":
     
     st.markdown("""
     <div class="ad-card" style="padding:40px;">
-        <h2>Banner Slot (728x90 / Responsive)</h2>
-        <p>Your Google AdSense or Direct Client Banner will appear here.</p>
+        <h2 style="color:#f8fafc;">Banner Slot (728x90 / Responsive)</h2>
+        <p style="color:#94a3b8;">Your Google AdSense or Direct Client Banner will appear here.</p>
     </div>
     """, unsafe_allow_html=True)
