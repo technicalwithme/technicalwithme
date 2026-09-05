@@ -6,6 +6,13 @@ from google.genai import types
 import json
 import io
 
+# ----------------- ADMIN PASSWORD CONFIGURATION -----------------
+ADMIN_PASSWORD = "Sajjad@786"
+
+# Session State for Authentication
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
+
 # Page Configuration
 st.set_page_config(
     page_title="Technical With Me | Electrical Engineering Portal",
@@ -53,7 +60,7 @@ if "blogs" not in st.session_state:
     st.session_state.blogs = [
         {
             "title": "Transformer Tan-Delta & Capacitance Testing Best Practices",
-            "category": "Testing & Commissioning",
+            "category": "Technical",
             "content": "Tan-Delta testing is crucial for assessing insulation degradation in bushings and windings. Maintaining ambient temperature records and using shielded cables prevents noise during 10kV test voltages.",
             "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         }
@@ -64,7 +71,7 @@ with st.sidebar:
     st.image("https://img.icons8.com/color/96/lightning-bolt.png", width=60)
     st.title("Technical With Me")
     st.caption("Power Systems & Automation Portal")
-    menu = st.radio("Navigation", ["⚡ AI Report Auto-Filler", "📰 Tech Blogs & Vlogs", "➕ Post New Blog", "📢 Sponsor Ads"])
+    menu = st.radio("Navigation", ["⚡ AI Report Auto-Filler", "📰 Tech Blogs & Vlogs", "🔒 Post New Blog (Admin)", "📢 Sponsor Ads"])
     
     st.divider()
     # Ad Slot Sidebar
@@ -141,7 +148,7 @@ if menu == "⚡ AI Report Auto-Filler":
                             """
 
                             response = client.models.generate_content(
-                                model='gemini-3.6-flash',
+                                model='gemini-2.5-flash',
                                 contents=[prompt, file_part],
                                 config=types.GenerateContentConfig(response_mime_type="application/json")
                             )
@@ -189,44 +196,76 @@ if menu == "⚡ AI Report Auto-Filler":
 
 # ----------------- PAGE 2: TECH BLOGS & VLOGS -----------------
 elif menu == "📰 Tech Blogs & Vlogs":
-    st.markdown('<p class="main-header">📰 Technical Articles & Vlogs</p>', unsafe_allow_html=True)
-    st.write("Latest updates on Power Systems, Substation Automation, and High-Voltage Testing.")
+    st.markdown('<p class="main-header">📰 Technical Articles, Vlogs & News</p>', unsafe_allow_html=True)
+    st.write("Latest updates on Power Systems, Substation Automation, Travels, and Industry News.")
 
-    for blog in st.session_state.blogs:
-        with st.container():
-            st.markdown(f"""
-            <div class="blog-card">
-                <span style="color:#1E88E5; font-weight:600;">🏷️ {blog['category']}</span>
-                <h3 style="margin-top:5px;">{blog['title']}</h3>
-                <p>{blog['content']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            if blog.get("video_url"):
-                st.video(blog["video_url"])
-            st.divider()
+    # Category Filter
+    selected_cat = st.radio("Filter By Category:", ["All", "Technical", "Traveling", "News"], horizontal=True)
 
-# ----------------- PAGE 3: POST NEW BLOG -----------------
-elif menu == "➕ Post New Blog":
-    st.markdown('<p class="main-header">✍️ Publish a New Technical Post / Vlog</p>', unsafe_allow_html=True)
-    
-    with st.form("new_post_form"):
-        title = st.text_input("Article / Vlog Title")
-        category = st.selectbox("Category", ["Substation Engineering", "Transformer Testing", "Protection & Relays", "Renewable Energy", "General Tech"])
-        content = st.text_area("Content / Description", height=150)
-        video_url = st.text_input("YouTube Video URL (Optional)")
-        submitted = st.form_submit_button("📢 Publish Post")
+    filtered_blogs = st.session_state.blogs if selected_cat == "All" else [b for b in st.session_state.blogs if b.get("category") == selected_cat]
+
+    if not filtered_blogs:
+        st.info("No posts found in this category.")
+    else:
+        for blog in filtered_blogs:
+            with st.container():
+                st.markdown(f"""
+                <div class="blog-card">
+                    <span style="color:#1E88E5; font-weight:600;">🏷️ {blog.get('category', 'Technical')}</span>
+                    <h3 style="margin-top:5px;">{blog['title']}</h3>
+                    <p>{blog['content']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                if blog.get("video_url"):
+                    st.video(blog["video_url"])
+                st.divider()
+
+# ----------------- PAGE 3: POST NEW BLOG (PASSWORD PROTECTED) -----------------
+elif menu == "🔒 Post New Blog (Admin)":
+    st.markdown('<p class="main-header">✍️ Admin Post Studio</p>', unsafe_allow_html=True)
+
+    # Check if admin is already logged in
+    if not st.session_state.admin_logged_in:
+        st.warning("⚠️ Yeh section password protected hai. Post karne ke liye kripya Admin Password dalein.")
+        pwd_input = st.text_input("Enter Admin Password:", type="password")
         
-        if submitted:
-            if title and content:
-                st.session_state.blogs.insert(0, {
-                    "title": title,
-                    "category": category,
-                    "content": content,
-                    "video_url": video_url if video_url else None
-                })
-                st.success("🎉 Post published successfully! Check the 'Tech Blogs & Vlogs' section.")
+        if st.button("Unlock Admin Panel"):
+            if pwd_input == ADMIN_PASSWORD:
+                st.session_state.admin_logged_in = True
+                st.success("✅ Password correct! Studio unlocked.")
+                st.rerun()
             else:
-                st.warning("Please fill in both title and content.")
+                st.error("❌ Galat password! Kripya sahi password enter karein.")
+    else:
+        # Admin is Logged In
+        col_admin1, col_admin2 = st.columns([4, 1])
+        with col_admin1:
+            st.success("🔓 Logged in as Admin")
+        with col_admin2:
+            if st.button("🚪 Logout"):
+                st.session_state.admin_logged_in = False
+                st.rerun()
+
+        st.divider()
+
+        with st.form("new_post_form"):
+            title = st.text_input("Article / Vlog Title")
+            category = st.selectbox("Category", ["Technical", "Traveling", "News"])
+            content = st.text_area("Content / Description", height=150)
+            video_url = st.text_input("YouTube Video URL (Optional)")
+            submitted = st.form_submit_button("📢 Publish Post")
+            
+            if submitted:
+                if title and content:
+                    st.session_state.blogs.insert(0, {
+                        "title": title,
+                        "category": category,
+                        "content": content,
+                        "video_url": video_url if video_url else None
+                    })
+                    st.success("🎉 Post published successfully! Check the 'Tech Blogs & Vlogs' section.")
+                else:
+                    st.warning("Please fill in both title and content.")
 
 # ----------------- PAGE 4: ADS / SPONSORS -----------------
 elif menu == "📢 Sponsor Ads":
