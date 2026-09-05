@@ -91,7 +91,6 @@ if menu == "⚡ AI Report Auto-Filler":
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        # Sirf do upload boxes dikhenge
         template_file = st.file_uploader("1. Blank Transformer Format (.docx)", type=["docx"])
         uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
 
@@ -109,7 +108,6 @@ if menu == "⚡ AI Report Auto-Filler":
 
         if template_file and uploaded_report:
             if st.button("🚀 Generate Final Report", use_container_width=True):
-                # Backend Secrets se API Key auto fetch
                 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
                 if not api_key:
@@ -149,7 +147,7 @@ if menu == "⚡ AI Report Auto-Filler":
                             """
 
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash',
+                                model='gemini-3.6-flash',
                                 contents=[prompt, file_part],
                                 config=types.GenerateContentConfig(response_mime_type="application/json")
                             )
@@ -225,7 +223,6 @@ elif menu == "📰 Tech Blogs & Vlogs":
 elif menu == "🔒 Post New Blog (Admin)":
     st.markdown('<p class="main-header">✍️ Admin Post Studio</p>', unsafe_allow_html=True)
 
-    # Check if admin is already logged in
     if not st.session_state.admin_logged_in:
         st.warning("⚠️ Yeh section password protected hai. Post karne ke liye kripya Admin Password dalein.")
         pwd_input = st.text_input("Enter Admin Password:", type="password")
@@ -238,7 +235,6 @@ elif menu == "🔒 Post New Blog (Admin)":
             else:
                 st.error("❌ Galat password! Kripya sahi password enter karein.")
     else:
-        # Admin is Logged In
         col_admin1, col_admin2 = st.columns([4, 1])
         with col_admin1:
             st.success("🔓 Logged in as Admin")
