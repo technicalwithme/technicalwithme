@@ -1,6 +1,6 @@
 streamlit
 pillow
 python-docx
-groq
+google-genai
 json-repair
 pypdfium2
