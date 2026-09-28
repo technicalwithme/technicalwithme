@@ -1,13 +1,11 @@
 import streamlit as st
 from PIL import Image
 from docx import Document
-from google import genai
-from google.genai import types
-from pydantic import BaseModel, Field
+from groq import Groq
 import json_repair
+import pypdfium2 as pdfium
 import io
-import os
-import tempfile
+import base64
 import time
 
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
@@ -85,33 +83,26 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Pydantic Schemas for Strict Guaranteed Structure
-class ParagraphUpdate(BaseModel):
-    index: int = Field(description="Target paragraph index")
-    append_value: str = Field(description="Text to append or insert")
-
-class TableUpdate(BaseModel):
-    table_idx: int = Field(description="Index of target table in word doc")
-    row_idx: int = Field(description="Target row index")
-    col_idx: int = Field(description="Target column index")
-    value: str = Field(description="Measurement value to write")
-
-class ReportData(BaseModel):
-    paragraph_updates: list[ParagraphUpdate] = []
-    table_updates: list[TableUpdate] = []
+def encode_image_to_base64(pil_image):
+    if pil_image.mode != "RGB":
+        pil_image = pil_image.convert("RGB")
+    pil_image.thumbnail((1600, 1600))
+    buf = io.BytesIO()
+    pil_image.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 def extract_and_repair_json(raw_text):
     if not raw_text or not raw_text.strip():
-        raise ValueError("AI ne blank response diya. Sheet dobara upload karein.")
+        raise ValueError("AI ne empty content return kiya.")
     parsed = json_repair.loads(raw_text)
     if isinstance(parsed, dict):
         return parsed
-    raise ValueError("JSON parse nahi ho paya. Structure corrupt mila.")
+    raise ValueError("JSON parse nahi ho paya. Output valid format me nahi mila.")
 
 # ----------------- PAGE 1: AI AUTO-FILLER -----------------
 if menu == "⚡ AI Report Auto-Filler":
     st.markdown('<p class="main-header">⚡ AI Transformer & Bay Report Auto-Filler</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-text">High-speed OCR via Groq Cloud (Free & Uncapped).</p>', unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
@@ -141,30 +132,34 @@ if menu == "⚡ AI Report Auto-Filler":
 
         if template_file and uploaded_report:
             if st.button("🚀 Generate Final Report", use_container_width=True):
-                api_key = st.secrets.get("GEMINI_API_KEY", "")
+                api_key = st.secrets.get("GROQ_API_KEY", "")
 
                 if not api_key:
-                    st.error("API Key backend secrets mein nahi mili.")
+                    st.error("GROQ_API_KEY backend secrets mein nahi mili. Kripya console.groq.com se le kar Secrets me dalein.")
                 else:
                     status = st.empty()
-                    status.info("Step 1/3: Reading template document layout...")
-
-                    uploaded_google_file = None
-                    temp_file_path = None
+                    status.info("Step 1/3: Reading Word document format...")
 
                     try:
                         doc = Document(template_file)
                         template_map = get_template_structure(doc)
 
-                        client = genai.Client(api_key=api_key)
+                        status.info("Preparing image pages for high-speed OCR...")
+                        base64_images = []
 
-                        file_suffix = ".pdf" if uploaded_report.type == "application/pdf" else "." + uploaded_report.name.split(".")[-1]
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmp:
-                            tmp.write(uploaded_report.getvalue())
-                            temp_file_path = tmp.name
+                        if uploaded_report.type == "application/pdf":
+                            pdf_bytes = uploaded_report.getvalue()
+                            pdf = pdfium.PdfDocument(pdf_bytes)
+                            # First 5 pages processed for fast extraction
+                            for page_idx in range(min(len(pdf), 5)):
+                                page = pdf[page_idx]
+                                pil_img = page.render(scale=1.5).to_pil()
+                                base64_images.append(encode_image_to_base64(pil_img))
+                        else:
+                            img = Image.open(uploaded_report)
+                            base64_images.append(encode_image_to_base64(img))
 
-                        status.info("Uploading document to Google Cloud for fast OCR...")
-                        uploaded_google_file = client.files.upload(file=temp_file_path)
+                        client = Groq(api_key=api_key)
 
                         prompt = f"""
                         You are a Lead Switchyard Testing Engineer.
@@ -179,46 +174,38 @@ if menu == "⚡ AI Report Auto-Filler":
                         {template_map}
 
                         ### STRICT FORMATTING:
-                        Do not use unescaped double quotes inside value strings.
-                        Only populate existing empty cells identified as [EMPTY].
+                        Return ONLY a valid JSON object matching this schema, without code fences:
+                        {{
+                          "paragraph_updates": [{{"index": 0, "append_value": "text"}}],
+                          "table_updates": [{{"table_idx": 0, "row_idx": 0, "col_idx": 0, "value": "text"}}]
+                        }}
                         """
 
-                        response = None
-                        last_error = None
-                        retry_delays = [6, 12, 20, 30]
+                        content_payload = [{"type": "text", "text": prompt}]
+                        for b64 in base64_images:
+                            content_payload.append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
+                            })
 
-                        for attempt, wait_time in enumerate(retry_delays, start=1):
-                            try:
-                                status.info(f"Step 2/3: AI deep-scanning site sheet (Attempt {attempt}/{len(retry_delays)})...")
-                                response = client.models.generate_content(
-                                    model="gemini-3.6-flash",
-                                    contents=[prompt, uploaded_google_file],
-                                    config=types.GenerateContentConfig(
-                                        response_mime_type="application/json",
-                                        response_schema=ReportData,
-                                        temperature=0.0,
-                                        max_output_tokens=8192
-                                    )
-                                )
-                                if response and response.text:
-                                    break
-                            except Exception as err:
-                                last_error = err
-                                err_str = str(err).upper()
-                                # Catch all variations of 503 / Busy / Quota
-                                if any(x in err_str for x in ["503", "UNAVAILABLE", "HIGH DEMAND", "BUSY", "429"]):
-                                    if attempt < len(retry_delays):
-                                        status.warning(f"⏳ Google Server par temporary load hai (503). {wait_time} seconds mein auto-retry ho raha hai...")
-                                        time.sleep(wait_time)
-                                        continue
-                                raise err
+                        status.info("Step 2/3: Groq AI reading handwritten sheets in real-time...")
 
-                        if not response or not response.text:
-                            raise last_error if last_error else Exception("Google Server busy raha. Kripya 30 seconds baad dobara click karein.")
+                        chat_completion = client.chat.completions.create(
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": content_payload
+                                }
+                            ],
+                            model="llama-3.2-11b-vision-preview",
+                            temperature=0.1,
+                            response_format={"type": "json_object"}
+                        )
 
-                        status.info("Step 3/3: Parsing data and writing into Word file...")
-                        
-                        mapping = extract_and_repair_json(response.text)
+                        response_text = chat_completion.choices[0].message.content
+
+                        status.info("Step 3/3: Auto-repairing and injecting data into Word document...")
+                        mapping = extract_and_repair_json(response_text)
 
                         # Paragraph Updates
                         for p_up in mapping.get("paragraph_updates", []):
@@ -259,18 +246,6 @@ if menu == "⚡ AI Report Auto-Filler":
                     except Exception as e:
                         status.empty()
                         st.error(f"Error: {e}")
-
-                    finally:
-                        if temp_file_path and os.path.exists(temp_file_path):
-                            try:
-                                os.remove(temp_file_path)
-                            except Exception:
-                                pass
-                        if uploaded_google_file:
-                            try:
-                                client.files.delete(name=uploaded_google_file.name)
-                            except Exception:
-                                pass
 
     with col2:
         st.markdown("""
