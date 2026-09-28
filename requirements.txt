@@ -1,4 +1,5 @@
 streamlit
-python-docx
 pillow
+python-docx
 google-genai
+json-repair
