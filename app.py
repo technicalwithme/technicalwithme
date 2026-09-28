@@ -1,11 +1,11 @@
 import streamlit as st
 from PIL import Image
 from docx import Document
-from groq import Groq
+from google import genai
+from google.genai import types
 import json_repair
 import pypdfium2 as pdfium
 import io
-import base64
 import time
 
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
@@ -83,26 +83,18 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-def encode_image_to_base64(pil_image):
-    if pil_image.mode != "RGB":
-        pil_image = pil_image.convert("RGB")
-    pil_image.thumbnail((1600, 1600))
-    buf = io.BytesIO()
-    pil_image.save(buf, format="JPEG", quality=85)
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
-
 def extract_and_repair_json(raw_text):
     if not raw_text or not raw_text.strip():
         raise ValueError("AI ne empty content return kiya.")
     parsed = json_repair.loads(raw_text)
     if isinstance(parsed, dict):
         return parsed
-    raise ValueError("JSON parse nahi ho paya. Output valid format me nahi mila.")
+    raise ValueError("JSON parse nahi ho paya. Structure verify karein.")
 
 # ----------------- PAGE 1: AI AUTO-FILLER -----------------
 if menu == "⚡ AI Report Auto-Filler":
     st.markdown('<p class="main-header">⚡ AI Transformer & Bay Report Auto-Filler</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-text">High-speed OCR via Groq Cloud (Free & Uncapped).</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
@@ -132,10 +124,10 @@ if menu == "⚡ AI Report Auto-Filler":
 
         if template_file and uploaded_report:
             if st.button("🚀 Generate Final Report", use_container_width=True):
-                api_key = st.secrets.get("GROQ_API_KEY", "")
+                api_key = st.secrets.get("GEMINI_API_KEY", "")
 
                 if not api_key:
-                    st.error("GROQ_API_KEY backend secrets mein nahi mili. Kripya console.groq.com se le kar Secrets me dalein.")
+                    st.error("GEMINI_API_KEY secrets mein configure nahi hai.")
                 else:
                     status = st.empty()
                     status.info("Step 1/3: Reading Word document format...")
@@ -144,21 +136,30 @@ if menu == "⚡ AI Report Auto-Filler":
                         doc = Document(template_file)
                         template_map = get_template_structure(doc)
 
-                        status.info("Preparing image pages for high-speed OCR...")
-                        base64_images = []
+                        status.info("Optimizing sheet pages for fast processing...")
+                        image_parts = []
 
                         if uploaded_report.type == "application/pdf":
-                            pdf_bytes = uploaded_report.getvalue()
-                            pdf = pdfium.PdfDocument(pdf_bytes)
-                            for page_idx in range(min(len(pdf), 5)):
-                                page = pdf[page_idx]
-                                pil_img = page.render(scale=1.5).to_pil()
-                                base64_images.append(encode_image_to_base64(pil_img))
+                            pdf = pdfium.PdfDocument(uploaded_report.getvalue())
+                            # Scan first 6 pages rendered cleanly
+                            for p_idx in range(min(len(pdf), 6)):
+                                pil_img = pdf[p_idx].render(scale=1.5).to_pil()
+                                if pil_img.mode != "RGB":
+                                    pil_img = pil_img.convert("RGB")
+                                pil_img.thumbnail((1600, 1600))
+                                b = io.BytesIO()
+                                pil_img.save(b, format="JPEG", quality=85)
+                                image_parts.append(types.Part.from_bytes(data=b.getvalue(), mime_type="image/jpeg"))
                         else:
                             img = Image.open(uploaded_report)
-                            base64_images.append(encode_image_to_base64(img))
+                            if img.mode != "RGB":
+                                img = img.convert("RGB")
+                            img.thumbnail((1800, 1800))
+                            b = io.BytesIO()
+                            img.save(b, format="JPEG", quality=85)
+                            image_parts.append(types.Part.from_bytes(data=b.getvalue(), mime_type="image/jpeg"))
 
-                        client = Groq(api_key=api_key)
+                        client = genai.Client(api_key=api_key)
 
                         prompt = f"""
                         You are a Lead Switchyard Testing Engineer.
@@ -173,38 +174,51 @@ if menu == "⚡ AI Report Auto-Filler":
                         {template_map}
 
                         ### STRICT FORMATTING:
-                        Return ONLY a valid JSON object matching this schema, without code fences:
+                        Return ONLY a valid JSON object matching this schema:
                         {{
                           "paragraph_updates": [{{"index": 0, "append_value": "text"}}],
                           "table_updates": [{{"table_idx": 0, "row_idx": 0, "col_idx": 0, "value": "text"}}]
                         }}
                         """
 
-                        content_payload = [{"type": "text", "text": prompt}]
-                        for b64 in base64_images:
-                            content_payload.append({
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
-                            })
+                        contents_payload = [prompt] + image_parts
 
-                        status.info("Step 2/3: Groq AI reading handwritten sheets in real-time...")
+                        status.info("Step 2/3: AI scanning handwritten records...")
 
-                        chat_completion = client.chat.completions.create(
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": content_payload
-                                }
-                            ],
-                            model="llama-3.2-90b-vision-preview",
-                            temperature=0.1,
-                            response_format={"type": "json_object"}
-                        )
+                        candidate_models = ["gemini-3.6-flash"]
+                        response = None
+                        last_error = None
 
-                        response_text = chat_completion.choices[0].message.content
+                        for mod in candidate_models:
+                            for wait in [5, 10, 15]:
+                                try:
+                                    response = client.models.generate_content(
+                                        model=mod,
+                                        contents=contents_payload,
+                                        config=types.GenerateContentConfig(
+                                            response_mime_type="application/json",
+                                            temperature=0.0,
+                                            max_output_tokens=8192
+                                        )
+                                    )
+                                    if response and response.text:
+                                        break
+                                except Exception as err:
+                                    last_error = err
+                                    err_u = str(err).upper()
+                                    if "503" in err_u or "UNAVAILABLE" in err_u:
+                                        status.warning(f"Server busy hai, {wait}s me retry kar rahe hain...")
+                                        time.sleep(wait)
+                                        continue
+                                    raise err
+                            if response and response.text:
+                                break
 
-                        status.info("Step 3/3: Auto-repairing and injecting data into Word document...")
-                        mapping = extract_and_repair_json(response_text)
+                        if not response or not response.text:
+                            raise last_error if last_error else Exception("No response received from AI model.")
+
+                        status.info("Step 3/3: Auto-repairing and inserting data into Word file...")
+                        mapping = extract_and_repair_json(response.text)
 
                         # Paragraph Updates
                         for p_up in mapping.get("paragraph_updates", []):
