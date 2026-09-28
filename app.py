@@ -1,5 +1,7 @@
 import io
+import os
 import re
+import tempfile
 import time
 from docx import Document
 from google import genai
@@ -123,7 +125,6 @@ def extract_and_repair_json(raw_text):
   if not raw_text or not raw_text.strip():
     raise ValueError("AI ne blank response diya. Sheet dobara upload karein.")
 
-  # Use json_repair for broken quotation marks / delimiters
   parsed = json_repair.loads(raw_text)
   if isinstance(parsed, dict):
     return parsed
@@ -147,11 +148,11 @@ if menu == "⚡ AI Report Auto-Filler":
   with col1:
     template_file = st.file_uploader(
         "1. Blank Format (.docx)", type=["docx"]
-    )  #
+    )  #[cite: 10]
     uploaded_report = st.file_uploader(
         "2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)",
         type=["pdf", "jpg", "png", "jpeg"],
-    )  #[cite: 9]
+    )  #[cite: 10]
 
     def get_template_structure(doc):
       structure = []
@@ -186,27 +187,29 @@ if menu == "⚡ AI Report Auto-Filler":
           status = st.empty()
           status.info("Step 1/3: Reading template document layout...")
 
+          uploaded_google_file = None
+          temp_file_path = None
+
           try:
             doc = Document(template_file)
             template_map = get_template_structure(doc)
 
-            if uploaded_report.type == "application/pdf":
-              file_bytes = uploaded_report.getvalue()
-              mime_type = "application/pdf"
-            else:
-              img = Image.open(uploaded_report)
-              if img.mode != "RGB":
-                img = img.convert("RGB")
-              img.thumbnail((2000, 2000))
-              buf = io.BytesIO()
-              img.save(buf, format="JPEG", quality=90)
-              file_bytes = buf.getvalue()
-              mime_type = "image/jpeg"
-
             client = genai.Client(api_key=api_key)
-            file_part = types.Part.from_bytes(
-                data=file_bytes, mime_type=mime_type
+
+            # Upload large files (>2MB) via Files API to avoid 503 timeouts
+            file_suffix = (
+                ".pdf"
+                if uploaded_report.type == "application/pdf"
+                else "." + uploaded_report.name.split(".")[-1]
             )
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=file_suffix
+            ) as tmp:
+              tmp.write(uploaded_report.getvalue())
+              temp_file_path = tmp.name
+
+            status.info("Uploading document to Google Cloud for fast OCR...")
+            uploaded_google_file = client.files.upload(file=temp_file_path)
 
             status.info("Step 2/3: AI deep-scanning site test records...")
 
@@ -229,16 +232,16 @@ if menu == "⚡ AI Report Auto-Filler":
 
             response = None
             last_error = None
-            retry_delays = [6, 12, 18]
+            retry_delays = [8, 15, 25]
 
             for attempt, wait_time in enumerate(retry_delays, start=1):
               try:
                 status.info(
-                    f"AI reading large report (Attempt {attempt}/3)..."
+                    f"AI reading document via Files API (Attempt {attempt}/3)..."
                 )
                 response = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=[prompt, file_part],
+                    contents=[prompt, uploaded_google_file],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=ReportData,
@@ -257,8 +260,8 @@ if menu == "⚡ AI Report Auto-Filler":
                     or "resource_exhausted" in err_msg
                 ):
                   status.warning(
-                      f"Google server busy (503). {wait_time}s mein auto-retry"
-                      " chal raha hai..."
+                      f"Google server par traffic spike hai (503). {wait_time}s"
+                      " mein auto-retry ho raha hai..."
                   )
                   time.sleep(wait_time)
                   continue
@@ -320,6 +323,19 @@ if menu == "⚡ AI Report Auto-Filler":
           except Exception as e:
             status.empty()
             st.error(f"Error: {e}")
+
+          finally:
+            # Cleanup temporary local and cloud files
+            if temp_file_path and os.path.exists(temp_file_path):
+              try:
+                os.remove(temp_file_path)
+              except Exception:
+                pass
+            if uploaded_google_file:
+              try:
+                client.files.delete(name=uploaded_google_file.name)
+              except Exception:
+                pass
 
   with col2:
     st.markdown(
