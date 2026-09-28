@@ -1,32 +1,30 @@
-import io
-import os
-import re
-import tempfile
-import time
+import streamlit as st
+from PIL import Image
 from docx import Document
 from google import genai
 from google.genai import types
-import json_repair
-from PIL import Image
 from pydantic import BaseModel, Field
-import streamlit as st
+import json_repair
+import io
+import os
+import tempfile
+import time
 
 # ----------------- ADMIN PASSWORD CONFIGURATION -----------------
 ADMIN_PASSWORD = "Sajjad@786"
 
 if "admin_logged_in" not in st.session_state:
-  st.session_state.admin_logged_in = False
+    st.session_state.admin_logged_in = False
 
 # Page Configuration
 st.set_page_config(
     page_title="Technical With Me | Electrical Engineering Portal",
     page_icon="⚡",
-    layout="wide",
+    layout="wide"
 )
 
 # Custom Styling
-st.markdown(
-    """
+st.markdown("""
 <style>
     .main-header {
         font-size: 2.2rem;
@@ -58,162 +56,117 @@ st.markdown(
         margin-bottom: 20px;
     }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # Session State for Dynamic Blogs
 if "blogs" not in st.session_state:
-  st.session_state.blogs = [{
-      "title": "Transformer & CT Testing Best Practices",
-      "category": "Technical",
-      "content": (
-          "Tan-Delta, Knee Point Voltage, and Winding Resistance measurements"
-          " are critical for evaluating switchyard asset health before"
-          " commissioning."
-      ),
-      "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  }]
+    st.session_state.blogs = [
+        {
+            "title": "Transformer & CT Testing Best Practices",
+            "category": "Technical",
+            "content": "Tan-Delta, Knee Point Voltage, and Winding Resistance measurements are critical for evaluating switchyard asset health before commissioning.",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        }
+    ]
 
 # Sidebar Navigation
 with st.sidebar:
-  st.image("https://img.icons8.com/color/96/lightning-bolt.png", width=60)
-  st.title("Technical With Me")
-  st.caption("Power Systems & Automation Portal")
-  menu = st.radio(
-      "Navigation",
-      [
-          "⚡ AI Report Auto-Filler",
-          "📰 Tech Blogs & Vlogs",
-          "🔒 Post New Blog (Admin)",
-          "📢 Sponsor Ads",
-      ],
-  )
-
-  st.divider()
-  st.markdown(
-      """
+    st.image("https://img.icons8.com/color/96/lightning-bolt.png", width=60)
+    st.title("Technical With Me")
+    st.caption("Power Systems & Automation Portal")
+    menu = st.radio("Navigation", ["⚡ AI Report Auto-Filler", "📰 Tech Blogs & Vlogs", "🔒 Post New Blog (Admin)", "📢 Sponsor Ads"])
+    
+    st.divider()
+    st.markdown("""
     <div class="ad-card">
         <small style="color: #888;">SPONSORED</small><br>
         <b>Omicron CPC 100 & Testing Kits</b><br>
         <span style="font-size: 12px; color: #555;">Reliable Switchyard Commissioning Tools</span>
     </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
+    """, unsafe_allow_html=True)
 
 # Pydantic Schemas for Strict Guaranteed Structure
 class ParagraphUpdate(BaseModel):
-  index: int = Field(description="Target paragraph index")
-  append_value: str = Field(description="Text to append or insert")
-
+    index: int = Field(description="Target paragraph index")
+    append_value: str = Field(description="Text to append or insert")
 
 class TableUpdate(BaseModel):
-  table_idx: int = Field(description="Index of target table in word doc")
-  row_idx: int = Field(description="Target row index")
-  col_idx: int = Field(description="Target column index")
-  value: str = Field(description="Measurement value to write")
-
+    table_idx: int = Field(description="Index of target table in word doc")
+    row_idx: int = Field(description="Target row index")
+    col_idx: int = Field(description="Target column index")
+    value: str = Field(description="Measurement value to write")
 
 class ReportData(BaseModel):
-  paragraph_updates: list[ParagraphUpdate] = []
-  table_updates: list[TableUpdate] = []
-
+    paragraph_updates: list[ParagraphUpdate] = []
+    table_updates: list[TableUpdate] = []
 
 def extract_and_repair_json(raw_text):
-  if not raw_text or not raw_text.strip():
-    raise ValueError("AI ne blank response diya. Sheet dobara upload karein.")
-
-  parsed = json_repair.loads(raw_text)
-  if isinstance(parsed, dict):
-    return parsed
-  raise ValueError("JSON parse nahi ho paya. Structure corrupt mila.")
-
+    if not raw_text or not raw_text.strip():
+        raise ValueError("AI ne blank response diya. Sheet dobara upload karein.")
+    parsed = json_repair.loads(raw_text)
+    if isinstance(parsed, dict):
+        return parsed
+    raise ValueError("JSON parse nahi ho paya. Structure corrupt mila.")
 
 # ----------------- PAGE 1: AI AUTO-FILLER -----------------
 if menu == "⚡ AI Report Auto-Filler":
-  st.markdown(
-      '<p class="main-header">⚡ AI Transformer & Bay Report Auto-Filler</p>',
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      '<p class="sub-text">Convert site engineer handwritten sheets directly'
-      " into structured Word documents.</p>",
-      unsafe_allow_html=True,
-  )
+    st.markdown('<p class="main-header">⚡ AI Transformer & Bay Report Auto-Filler</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-text">Convert site engineer handwritten sheets directly into structured Word documents.</p>', unsafe_allow_html=True)
 
-  col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([2, 1])
 
-  with col1:
-    template_file = st.file_uploader(
-        "1. Blank Format (.docx)", type=["docx"]
-    )  #[cite: 10]
-    uploaded_report = st.file_uploader(
-        "2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)",
-        type=["pdf", "jpg", "png", "jpeg"],
-    )  #[cite: 10]
+    with col1:
+        template_file = st.file_uploader("1. Blank Format (.docx)", type=["docx"])
+        uploaded_report = st.file_uploader("2. Site Engineer Handwritten Sheet (PDF, JPG, PNG)", type=["pdf", "jpg", "png", "jpeg"])
 
-    def get_template_structure(doc):
-      structure = []
-      for i, p in enumerate(doc.paragraphs):
-        txt = p.text.strip()
-        if txt:
-          structure.append(f"P[{i}]: {txt}")
+        def get_template_structure(doc):
+            structure = []
+            for i, p in enumerate(doc.paragraphs):
+                txt = p.text.strip()
+                if txt:
+                    structure.append(f"P[{i}]: {txt}")
+            
+            for t_idx, tbl in enumerate(doc.tables):
+                structure.append(f"\n=== TABLE {t_idx} (Rows: {len(tbl.rows)}, Cols: {len(tbl.columns) if tbl.rows else 0}) ===")
+                for r_idx, row in enumerate(tbl.rows):
+                    row_content = []
+                    for c_idx, cell in enumerate(row.cells):
+                        val = cell.text.strip().replace("\n", " ")
+                        if not val:
+                            row_content.append(f"R{r_idx}C{c_idx}:[EMPTY]")
+                        else:
+                            row_content.append(f"R{r_idx}C{c_idx}:{val}")
+                    structure.append(" | ".join(row_content))
+            return "\n".join(structure)
 
-      for t_idx, tbl in enumerate(doc.tables):
-        structure.append(
-            f"\n=== TABLE {t_idx} (Rows: {len(tbl.rows)}, Cols:"
-            f" {len(tbl.columns) if tbl.rows else 0}) ==="
-        )
-        for r_idx, row in enumerate(tbl.rows):
-          row_content = []
-          for c_idx, cell in enumerate(row.cells):
-            val = cell.text.strip().replace("\n", " ")
-            if not val:
-              row_content.append(f"R{r_idx}C{c_idx}:[EMPTY]")
-            else:
-              row_content.append(f"R{r_idx}C{c_idx}:{val}")
-          structure.append(" | ".join(row_content))
-      return "\n".join(structure)
+        if template_file and uploaded_report:
+            if st.button("🚀 Generate Final Report", use_container_width=True):
+                api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-    if template_file and uploaded_report:
-      if st.button("🚀 Generate Final Report", use_container_width=True):
-        api_key = st.secrets.get("GEMINI_API_KEY", "")
+                if not api_key:
+                    st.error("API Key backend secrets mein nahi mili.")
+                else:
+                    status = st.empty()
+                    status.info("Step 1/3: Reading template document layout...")
 
-        if not api_key:
-          st.error("API Key backend secrets mein nahi mili.")
-        else:
-          status = st.empty()
-          status.info("Step 1/3: Reading template document layout...")
+                    uploaded_google_file = None
+                    temp_file_path = None
 
-          uploaded_google_file = None
-          temp_file_path = None
+                    try:
+                        doc = Document(template_file)
+                        template_map = get_template_structure(doc)
 
-          try:
-            doc = Document(template_file)
-            template_map = get_template_structure(doc)
+                        client = genai.Client(api_key=api_key)
 
-            client = genai.Client(api_key=api_key)
+                        file_suffix = ".pdf" if uploaded_report.type == "application/pdf" else "." + uploaded_report.name.split(".")[-1]
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tmp:
+                            tmp.write(uploaded_report.getvalue())
+                            temp_file_path = tmp.name
 
-            # Upload large files (>2MB) via Files API to avoid 503 timeouts
-            file_suffix = (
-                ".pdf"
-                if uploaded_report.type == "application/pdf"
-                else "." + uploaded_report.name.split(".")[-1]
-            )
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=file_suffix
-            ) as tmp:
-              tmp.write(uploaded_report.getvalue())
-              temp_file_path = tmp.name
+                        status.info("Uploading document to Google Cloud for fast OCR...")
+                        uploaded_google_file = client.files.upload(file=temp_file_path)
 
-            status.info("Uploading document to Google Cloud for fast OCR...")
-            uploaded_google_file = client.files.upload(file=temp_file_path)
-
-            status.info("Step 2/3: AI deep-scanning site test records...")
-
-            prompt = f"""
+                        prompt = f"""
                         You are a Lead Switchyard Testing Engineer.
                         Extract all handwritten test readings from the document (covering Power Transformers, Current Transformers CT, PT/CVT, or Bay equipment).
                         Map each extracted measurement strictly into the corresponding [EMPTY] or blank cells of the Word document layout.
@@ -230,248 +183,183 @@ if menu == "⚡ AI Report Auto-Filler":
                         Only populate existing empty cells identified as [EMPTY].
                         """
 
-            response = None
-            last_error = None
-            retry_delays = [8, 15, 25]
+                        response = None
+                        last_error = None
+                        retry_delays = [6, 12, 20, 30]
 
-            for attempt, wait_time in enumerate(retry_delays, start=1):
-              try:
-                status.info(
-                    f"AI reading document via Files API (Attempt {attempt}/3)..."
-                )
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=[prompt, uploaded_google_file],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ReportData,
-                        temperature=0.0,
-                        max_output_tokens=8192,
-                    ),
-                )
-                if response and response.text:
-                  break
-              except Exception as err:
-                last_error = err
-                err_msg = str(err).lower()
-                if (
-                    "503" in err_msg
-                    or "unavailable" in err_msg
-                    or "resource_exhausted" in err_msg
-                ):
-                  status.warning(
-                      f"Google server par traffic spike hai (503). {wait_time}s"
-                      " mein auto-retry ho raha hai..."
-                  )
-                  time.sleep(wait_time)
-                  continue
-                else:
-                  raise err
+                        for attempt, wait_time in enumerate(retry_delays, start=1):
+                            try:
+                                status.info(f"Step 2/3: AI deep-scanning site sheet (Attempt {attempt}/{len(retry_delays)})...")
+                                response = client.models.generate_content(
+                                    model="gemini-3.6-flash",
+                                    contents=[prompt, uploaded_google_file],
+                                    config=types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        response_schema=ReportData,
+                                        temperature=0.0,
+                                        max_output_tokens=8192
+                                    )
+                                )
+                                if response and response.text:
+                                    break
+                            except Exception as err:
+                                last_error = err
+                                err_str = str(err).upper()
+                                # Catch all variations of 503 / Busy / Quota
+                                if any(x in err_str for x in ["503", "UNAVAILABLE", "HIGH DEMAND", "BUSY", "429"]):
+                                    if attempt < len(retry_delays):
+                                        status.warning(f"⏳ Google Server par temporary load hai (503). {wait_time} seconds mein auto-retry ho raha hai...")
+                                        time.sleep(wait_time)
+                                        continue
+                                raise err
 
-            if not response or not response.text:
-              raise last_error if last_error else Exception(
-                  "AI response empty mila. Kripya dobara try karein."
-              )
+                        if not response or not response.text:
+                            raise last_error if last_error else Exception("Google Server busy raha. Kripya 30 seconds baad dobara click karein.")
 
-            status.info("Step 3/3: Auto-repairing JSON & writing into Word...")
+                        status.info("Step 3/3: Parsing data and writing into Word file...")
+                        
+                        mapping = extract_and_repair_json(response.text)
 
-            mapping = extract_and_repair_json(response.text)
+                        # Paragraph Updates
+                        for p_up in mapping.get("paragraph_updates", []):
+                            idx = p_up.get("index")
+                            val = p_up.get("append_value", "")
+                            if idx is not None and idx < len(doc.paragraphs) and val:
+                                doc.paragraphs[idx].text = f"{doc.paragraphs[idx].text} {val}".strip()
 
-            # Paragraph Updates
-            for p_up in mapping.get("paragraph_updates", []):
-              idx = p_up.get("index")
-              val = p_up.get("append_value", "")
-              if idx is not None and idx < len(doc.paragraphs) and val:
-                doc.paragraphs[idx].text = (
-                    f"{doc.paragraphs[idx].text} {val}".strip()
-                )
+                        # Table Updates
+                        updated_count = 0
+                        for t_up in mapping.get("table_updates", []):
+                            t_idx = t_up.get("table_idx")
+                            r_idx = t_up.get("row_idx")
+                            c_idx = t_up.get("col_idx")
+                            val = t_up.get("value", "")
 
-            # Table Updates
-            updated_count = 0
-            for t_up in mapping.get("table_updates", []):
-              t_idx = t_up.get("table_idx")
-              r_idx = t_up.get("row_idx")
-              c_idx = t_up.get("col_idx")
-              val = t_up.get("value", "")
+                            if t_idx is not None and t_idx < len(doc.tables):
+                                tbl = doc.tables[t_idx]
+                                if r_idx is not None and r_idx < len(tbl.rows):
+                                    row = tbl.rows[r_idx]
+                                    if c_idx is not None and c_idx < len(row.cells):
+                                        row.cells[c_idx].text = str(val)
+                                        updated_count += 1
 
-              if t_idx is not None and t_idx < len(doc.tables):
-                tbl = doc.tables[t_idx]
-                if r_idx is not None and r_idx < len(tbl.rows):
-                  row = tbl.rows[r_idx]
-                  if c_idx is not None and c_idx < len(row.cells):
-                    row.cells[c_idx].text = str(val)
-                    updated_count += 1
+                        bio = io.BytesIO()
+                        doc.save(bio)
+                        status.empty()
 
-            bio = io.BytesIO()
-            doc.save(bio)
-            status.empty()
+                        st.success(f"✅ Report generated successfully! Populated {updated_count} test cells.")
+                        st.download_button(
+                            label="📥 Download Completed Word Document",
+                            data=bio.getvalue(),
+                            file_name="Completed_Testing_Report.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
 
-            st.success(
-                "✅ Report generated successfully! Populated"
-                f" {updated_count} test cells."
-            )
-            st.download_button(
-                label="📥 Download Completed Word Document",
-                data=bio.getvalue(),
-                file_name="Completed_Testing_Report.docx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                ),
-                use_container_width=True,
-            )
+                    except Exception as e:
+                        status.empty()
+                        st.error(f"Error: {e}")
 
-          except Exception as e:
-            status.empty()
-            st.error(f"Error: {e}")
+                    finally:
+                        if temp_file_path and os.path.exists(temp_file_path):
+                            try:
+                                os.remove(temp_file_path)
+                            except Exception:
+                                pass
+                        if uploaded_google_file:
+                            try:
+                                client.files.delete(name=uploaded_google_file.name)
+                            except Exception:
+                                pass
 
-          finally:
-            # Cleanup temporary local and cloud files
-            if temp_file_path and os.path.exists(temp_file_path):
-              try:
-                os.remove(temp_file_path)
-              except Exception:
-                pass
-            if uploaded_google_file:
-              try:
-                client.files.delete(name=uploaded_google_file.name)
-              except Exception:
-                pass
-
-  with col2:
-    st.markdown(
-        """
+    with col2:
+        st.markdown("""
         <div class="ad-card">
             <h4>⚡ Industry Solutions</h4>
             <p>High Voltage Transformer & Switchyard Testing Services.</p>
             <button style="background-color:#1E88E5; color:white; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Contact Experts</button>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
 # ----------------- PAGE 2: TECH BLOGS & VLOGS -----------------
 elif menu == "📰 Tech Blogs & Vlogs":
-  st.markdown(
-      '<p class="main-header">📰 Technical Articles, Vlogs & News</p>',
-      unsafe_allow_html=True,
-  )
-  st.write(
-      "Latest updates on Power Systems, Substation Automation, Travels, and"
-      " Industry News."
-  )
+    st.markdown('<p class="main-header">📰 Technical Articles, Vlogs & News</p>', unsafe_allow_html=True)
+    st.write("Latest updates on Power Systems, Substation Automation, Travels, and Industry News.")
 
-  selected_cat = st.radio(
-      "Filter By Category:",
-      ["All", "Technical", "Traveling", "News"],
-      horizontal=True,
-  )
-  filtered_blogs = (
-      st.session_state.blogs
-      if selected_cat == "All"
-      else [
-          b
-          for b in st.session_state.blogs
-          if b.get("category") == selected_cat
-      ]
-  )
+    selected_cat = st.radio("Filter By Category:", ["All", "Technical", "Traveling", "News"], horizontal=True)
+    filtered_blogs = st.session_state.blogs if selected_cat == "All" else [b for b in st.session_state.blogs if b.get("category") == selected_cat]
 
-  if not filtered_blogs:
-    st.info("No posts found in this category.")
-  else:
-    for blog in filtered_blogs:
-      with st.container():
-        st.markdown(
-            f"""
+    if not filtered_blogs:
+        st.info("No posts found in this category.")
+    else:
+        for blog in filtered_blogs:
+            with st.container():
+                st.markdown(f"""
                 <div class="blog-card">
                     <span style="color:#1E88E5; font-weight:600;">🏷️ {blog.get('category', 'Technical')}</span>
                     <h3 style="margin-top:5px;">{blog['title']}</h3>
                     <p>{blog['content']}</p>
                 </div>
-                """,
-            unsafe_allow_html=True,
-        )
-        if blog.get("video_url"):
-          st.video(blog["video_url"])
-        st.divider()
+                """, unsafe_allow_html=True)
+                if blog.get("video_url"):
+                    st.video(blog["video_url"])
+                st.divider()
 
 # ----------------- PAGE 3: POST NEW BLOG (ADMIN) -----------------
 elif menu == "🔒 Post New Blog (Admin)":
-  st.markdown(
-      '<p class="main-header">✍️ Admin Post Studio</p>', unsafe_allow_html=True
-  )
+    st.markdown('<p class="main-header">✍️ Admin Post Studio</p>', unsafe_allow_html=True)
 
-  if not st.session_state.admin_logged_in:
-    st.warning(
-        "⚠️ Yeh section password protected hai. Post karne ke liye kripya Admin"
-        " Password dalein."
-    )
-    pwd_input = st.text_input("Enter Admin Password:", type="password")
+    if not st.session_state.admin_logged_in:
+        st.warning("⚠️ Yeh section password protected hai. Post karne ke liye kripya Admin Password dalein.")
+        pwd_input = st.text_input("Enter Admin Password:", type="password")
+        
+        if st.button("Unlock Admin Panel"):
+            if pwd_input == ADMIN_PASSWORD:
+                st.session_state.admin_logged_in = True
+                st.success("✅ Password correct! Studio unlocked.")
+                st.rerun()
+            else:
+                st.error("❌ Galat password! Kripya sahi password enter karein.")
+    else:
+        col_admin1, col_admin2 = st.columns([4, 1])
+        with col_admin1:
+            st.success("🔓 Logged in as Admin")
+        with col_admin2:
+            if st.button("🚪 Logout"):
+                st.session_state.admin_logged_in = False
+                st.rerun()
 
-    if st.button("Unlock Admin Panel"):
-      if pwd_input == ADMIN_PASSWORD:
-        st.session_state.admin_logged_in = True
-        st.success("✅ Password correct! Studio unlocked.")
-        st.rerun()
-      else:
-        st.error("❌ Galat password! Kripya sahi password enter karein.")
-  else:
-    col_admin1, col_admin2 = st.columns([4, 1])
-    with col_admin1:
-      st.success("🔓 Logged in as Admin")
-    with col_admin2:
-      if st.button("🚪 Logout"):
-        st.session_state.admin_logged_in = False
-        st.rerun()
+        st.divider()
 
-    st.divider()
-
-    with st.form("new_post_form"):
-      title = st.text_input("Article / Vlog Title")
-      category = st.selectbox("Category", ["Technical", "Traveling", "News"])
-      content = st.text_area("Content / Description", height=150)
-      video_url = st.text_input("YouTube Video URL (Optional)")
-      submitted = st.form_submit_button("📢 Publish Post")
-
-      if submitted:
-        if title and content:
-          st.session_state.blogs.insert(
-              0,
-              {
-                  "title": title,
-                  "category": category,
-                  "content": content,
-                  "video_url": video_url if video_url else None,
-              },
-          )
-          st.success(
-              "🎉 Post published successfully! Check the 'Tech Blogs & Vlogs'"
-              " section."
-          )
-        else:
-          st.warning("Please fill in both title and content.")
+        with st.form("new_post_form"):
+            title = st.text_input("Article / Vlog Title")
+            category = st.selectbox("Category", ["Technical", "Traveling", "News"])
+            content = st.text_area("Content / Description", height=150)
+            video_url = st.text_input("YouTube Video URL (Optional)")
+            submitted = st.form_submit_button("📢 Publish Post")
+            
+            if submitted:
+                if title and content:
+                    st.session_state.blogs.insert(0, {
+                        "title": title,
+                        "category": category,
+                        "content": content,
+                        "video_url": video_url if video_url else None
+                    })
+                    st.success("🎉 Post published successfully! Check the 'Tech Blogs & Vlogs' section.")
+                else:
+                    st.warning("Please fill in both title and content.")
 
 # ----------------- PAGE 4: ADS / SPONSORS -----------------
 elif menu == "📢 Sponsor Ads":
-  st.markdown(
-      '<p class="main-header">📢 Sponsorship & Advertising</p>',
-      unsafe_allow_html=True,
-  )
-  st.write(
-      "Monetize your portal using Google AdSense code or direct client banners."
-  )
-
-  st.info(
-      "💡 To connect Google AdSense: Paste your `<script async"
-      " src='https://pagead2.googlesyndication.com...'></script>` code here"
-      " using `st.components.v1.html()`."
-  )
-
-  st.markdown(
-      """
+    st.markdown('<p class="main-header">📢 Sponsorship & Advertising</p>', unsafe_allow_html=True)
+    st.write("Monetize your portal using Google AdSense code or direct client banners.")
+    
+    st.info("💡 To connect Google AdSense: Paste your `<script async src='https://pagead2.googlesyndication.com...'></script>` code here using `st.components.v1.html()`.")
+    
+    st.markdown("""
     <div class="ad-card" style="padding:40px;">
         <h2>Banner Slot (728x90 / Responsive)</h2>
         <p>Your Google AdSense or Direct Client Banner will appear here.</p>
     </div>
-    """,
-      unsafe_allow_html=True,
-  )
+    """, unsafe_allow_html=True)
