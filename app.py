@@ -150,7 +150,6 @@ if menu == "⚡ AI Report Auto-Filler":
                         if uploaded_report.type == "application/pdf":
                             pdf_bytes = uploaded_report.getvalue()
                             pdf = pdfium.PdfDocument(pdf_bytes)
-                            # First 5 pages processed for fast extraction
                             for page_idx in range(min(len(pdf), 5)):
                                 page = pdf[page_idx]
                                 pil_img = page.render(scale=1.5).to_pil()
@@ -197,7 +196,7 @@ if menu == "⚡ AI Report Auto-Filler":
                                     "content": content_payload
                                 }
                             ],
-                            model="llama-3.2-11b-vision-preview",
+                            model="llama-3.2-90b-vision-preview",
                             temperature=0.1,
                             response_format={"type": "json_object"}
                         )
